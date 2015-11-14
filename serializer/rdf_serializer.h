@@ -12,7 +12,7 @@
 #include <model/rdf_model.h>
 #include <raptor2/raptor2.h>
 
-namespace rdf {
+namespace marmotta {
     namespace serializer {
 
         enum Format {
@@ -36,7 +36,7 @@ namespace rdf {
 
 
 
-            void serialize(const Statement& stmt, std::ostream& out) {
+            void serialize(const rdf::Statement& stmt, std::ostream& out) {
                 raptor_iostream* s = initIOStream(out);
                 raptor_serializer_start_to_iostream(serializer, base, s);
                 serialize(stmt, s);
@@ -63,7 +63,7 @@ namespace rdf {
             Format format;
             std::map<std::string, rdf::URI> namespaces;
 
-            void serialize(const Statement& stmt, raptor_iostream* stream);
+            void serialize(const rdf::Statement& stmt, raptor_iostream* stream);
 
             void initRaptor();
             raptor_iostream* initIOStream(std::ostream &out);

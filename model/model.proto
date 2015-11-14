@@ -1,7 +1,5 @@
 syntax = "proto3";
 
-option cc_enable_arenas = true;
-
 package marmotta.rdf.proto;
 
 message Namespace {

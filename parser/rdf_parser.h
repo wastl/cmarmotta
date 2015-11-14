@@ -11,7 +11,7 @@
 #include <raptor2/raptor2.h>
 #include <model/rdf_model.h>
 
-namespace rdf {
+namespace marmotta {
     namespace parser {
 
         enum Format {

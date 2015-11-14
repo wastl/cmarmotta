@@ -5,7 +5,7 @@
 #include <raptor2/raptor2.h>
 #include "rdf_parser.h"
 
-namespace rdf {
+namespace marmotta {
     namespace parser {
         Parser::Parser(const rdf::URI& baseUri, Format format)
                 : stmt_handler([](const rdf::Statement& stmt) { })

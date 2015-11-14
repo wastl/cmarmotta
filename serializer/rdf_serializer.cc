@@ -4,63 +4,63 @@
 #include <raptor2/raptor2.h>
 #include "rdf_serializer.h"
 
-static std::map<std::string, rdf::URI> namespacesMap(std::vector<rdf::Namespace> list) {
-    std::map<std::string, rdf::URI> result;
-    for(auto it=list.cbegin(); it != list.cend(); it++) {
-        result[it->getPrefix()]=it->getUri();
-    }
-    return result;
-}
-
-static int std_iostream_write_byte(void *context, const int byte) {
-    std::ostream* out = (std::ostream *) context;
-    out->write((char const *) &byte, 1);
-    if(*out) {
-        return 0;
-    } else {
-        return 1;
-    }
-}
-
-static int std_iostream_write_bytes(void *context, const void *ptr, size_t size, size_t nmemb) {
-    std::ostream* out = (std::ostream *) context;
-    out->write((char const *) ptr, size * nmemb);
-    if(*out) {
-        return 0;
-    } else {
-        return 1;
-    }
-}
-
-static int std_iostream_read_bytes(void *context, void *ptr, size_t size, size_t nmemb) {
-    std::istream* in = (std::istream *)context;
-
-    if(!*in) {
-        return -1;
+namespace marmotta {
+    static std::map<std::string, rdf::URI> namespacesMap(std::vector<rdf::Namespace> list) {
+        std::map<std::string, rdf::URI> result;
+        for(auto it=list.cbegin(); it != list.cend(); it++) {
+            result[it->getPrefix()]=it->getUri();
+        }
+        return result;
     }
 
-    in->read((char *) ptr, size*nmemb);
-    return (int) in->gcount();
-}
-
-static int std_iostream_read_eof(void *context) {
-    std::istream* in = (std::istream *)context;
-
-    if(in->eof()) {
-        return 1;
-    } else {
-        return 0;
+    static int std_iostream_write_byte(void *context, const int byte) {
+        std::ostream* out = (std::ostream *) context;
+        out->write((char const *) &byte, 1);
+        if(*out) {
+            return 0;
+        } else {
+            return 1;
+        }
     }
-}
 
-const raptor_iostream_handler raptor_handler = {
-        2, NULL, NULL,
-        &std_iostream_write_byte, &std_iostream_write_bytes, NULL,
-        &std_iostream_read_bytes, &std_iostream_read_eof
-};
+    static int std_iostream_write_bytes(void *context, const void *ptr, size_t size, size_t nmemb) {
+        std::ostream* out = (std::ostream *) context;
+        out->write((char const *) ptr, size * nmemb);
+        if(*out) {
+            return 0;
+        } else {
+            return 1;
+        }
+    }
+
+    static int std_iostream_read_bytes(void *context, void *ptr, size_t size, size_t nmemb) {
+        std::istream* in = (std::istream *)context;
+
+        if(!*in) {
+            return -1;
+        }
+
+        in->read((char *) ptr, size*nmemb);
+        return (int) in->gcount();
+    }
+
+    static int std_iostream_read_eof(void *context) {
+        std::istream* in = (std::istream *)context;
+
+        if(in->eof()) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    const raptor_iostream_handler raptor_handler = {
+            2, NULL, NULL,
+            &std_iostream_write_byte, &std_iostream_write_bytes, NULL,
+            &std_iostream_read_bytes, &std_iostream_read_eof
+    };
 
 
-namespace rdf {
     namespace serializer {
         inline std::string raptorFormat(Format format) {
             switch (format) {
@@ -85,10 +85,10 @@ namespace rdf {
         }
 
         Serializer::Serializer(const rdf::URI& baseUri, Format format, std::vector<rdf::Namespace> namespaces)
-            : Serializer(baseUri, format, namespacesMap(namespaces)) { }
+                : Serializer(baseUri, format, namespacesMap(namespaces)) { }
 
         Serializer::Serializer(const rdf::URI& baseUri, Format format, std::map<std::string, rdf::URI> namespaces)
-            : namespaces(namespaces), format(format) {
+                : namespaces(namespaces), format(format) {
 
             world = raptor_new_world();
             base  = raptor_new_uri(world, (unsigned char const *) baseUri.getUri().c_str());
@@ -167,7 +167,7 @@ namespace rdf {
             });
         }
 
-        void Serializer::serialize(const Statement &stmt, raptor_iostream *stream) {
+        void Serializer::serialize(const rdf::Statement &stmt, raptor_iostream *stream) {
             raptor_statement* triple = raptor_new_statement(world);
 
             switch (stmt.getSubject().type) {

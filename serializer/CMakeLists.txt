@@ -1,4 +1,4 @@
-include_directories(..)
+include_directories(.. ${CMAKE_CURRENT_BINARY_DIR}/../model)
 
 add_library(marmotta_serializer SHARED rdf_serializer.h rdf_serializer.cc rdf_serializer.cc)
 set_target_properties(marmotta_serializer PROPERTIES SOVERSION 1)

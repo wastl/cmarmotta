@@ -23,6 +23,10 @@ namespace marmotta {
 
             Namespace(const proto::Namespace &ns) : internal_(ns) { };
 
+            Namespace(proto::Namespace &&ns) {
+                internal_.Swap(&ns);
+            };
+
             const std::string &getPrefix() const {
                 return internal_.prefix();
             }
@@ -64,6 +68,24 @@ namespace marmotta {
 
             URI(const proto::URI &uri) : internal_(uri) { }
 
+            URI(proto::URI &&uri) {
+                internal_.Swap(&uri);
+            }
+
+            URI(URI&& uri) {
+                internal_.Swap(&uri.internal_);
+            }
+
+            URI &operator=(proto::URI &&other) {
+                internal_.Swap(&other);
+                return *this;
+            }
+
+            URI &operator=(URI &&other) {
+                internal_.Swap(&other.internal_);
+                return *this;
+            }
+
             const std::string &getUri() const {
                 return internal_.uri();
             }
@@ -86,6 +108,9 @@ namespace marmotta {
             proto::URI internal_;
 
             friend bool operator==(const URI &lhs, const URI &rhs);
+            friend class Value;
+            friend class Resource;
+            friend class Statement;
         };
 
 
@@ -103,13 +128,23 @@ namespace marmotta {
 
             BNode(const proto::BNode &n) : internal_(n) { }
 
-            BNode(const BNode &n) = default;
+            BNode(proto::BNode &&n) {
+                internal_.Swap(&n);
+            };
 
-            BNode(BNode &&n) = default;
+            BNode(BNode &&n) {
+                internal_.Swap(&n.internal_);
+            };
 
-            BNode &operator=(const BNode &other) = default;
+            BNode &operator=(proto::BNode &&other) {
+                internal_.Swap(&other);
+                return *this;
+            };
 
-            BNode &operator=(BNode &&other) = default;
+            BNode &operator=(BNode &&other) {
+                internal_.Swap(&other.internal_);
+                return *this;
+            };
 
             const std::string &getId() const {
                 return internal_.id();
@@ -133,6 +168,8 @@ namespace marmotta {
             proto::BNode internal_;
 
             friend bool operator==(const BNode &lhs, const BNode &rhs);
+            friend class Value;
+            friend class Resource;
         };
 
 
@@ -150,6 +187,24 @@ namespace marmotta {
             }
 
             StringLiteral(const proto::StringLiteral &other) : internal_(other) { };
+
+            StringLiteral(proto::StringLiteral &&other) {
+                internal_.Swap(&other);
+            }
+
+            StringLiteral(StringLiteral &&other) {
+                internal_.Swap(&other.internal_);
+            }
+
+            StringLiteral &operator=(proto::StringLiteral &&other) {
+                internal_.Swap(&other);
+                return *this;
+            };
+
+            StringLiteral &operator=(StringLiteral &&other) {
+                internal_.Swap(&other.internal_);
+                return *this;
+            };
 
             const std::string &getContent() const {
                 return internal_.content();
@@ -181,6 +236,7 @@ namespace marmotta {
             proto::StringLiteral internal_;
 
             friend bool operator==(const StringLiteral &lhs, const StringLiteral &rhs);
+            friend class Value;
         };
 
 
@@ -195,6 +251,23 @@ namespace marmotta {
 
             DatatypeLiteral(const proto::DatatypeLiteral &other) : internal_(other) { };
 
+            DatatypeLiteral(proto::DatatypeLiteral &&other) {
+                internal_.Swap(&other);
+            }
+
+            DatatypeLiteral(DatatypeLiteral &&other) {
+                internal_.Swap(&other.internal_);
+            }
+
+            DatatypeLiteral &operator=(proto::DatatypeLiteral &&other) {
+                internal_.Swap(&other);
+                return *this;
+            };
+
+            DatatypeLiteral &operator=(DatatypeLiteral &&other) {
+                internal_.Swap(&other.internal_);
+                return *this;
+            };
 
             const std::string &getContent() const {
                 return internal_.content();
@@ -258,6 +331,7 @@ namespace marmotta {
             proto::DatatypeLiteral internal_;
 
             friend bool operator==(const DatatypeLiteral &lhs, const DatatypeLiteral &rhs);
+            friend class Value;
         };
 
         class Value {
@@ -268,36 +342,40 @@ namespace marmotta {
 
             Value() : type(NONE) { }
 
-            Value(const proto::Value& v) : internal_(v) {
-                if (v.has_resource()) {
-                    if (v.resource().has_uri())
-                        type = URI;
-                    else
-                        type = BNODE;
-                } else if (v.has_literal()) {
-                    if (v.literal().has_stringliteral())
-                        type = STRING_LITERAL;
-                    else
-                        type = DATATYPE_LITERAL;
-                } else {
-                    type = NONE;
-                }
-            }
+            Value(const proto::Value& v);
+
+            Value(proto::Value&& v);
 
             Value(const marmotta::rdf::URI &uri) : type(URI) {
                 internal_.mutable_resource()->mutable_uri()->MergeFrom(uri.getMessage());
+            }
+
+            Value(marmotta::rdf::URI &&uri) : type(URI) {
+                internal_.mutable_resource()->mutable_uri()->Swap(&uri.internal_);
             }
 
             Value(const BNode &bnode) : type(BNODE) {
                 internal_.mutable_resource()->mutable_bnode()->MergeFrom(bnode.getMessage());
             }
 
+            Value(BNode &&bnode) : type(BNODE) {
+                internal_.mutable_resource()->mutable_bnode()->Swap(&bnode.internal_);
+            }
+
             Value(const StringLiteral &sliteral) : type(STRING_LITERAL) {
                 internal_.mutable_literal()->mutable_stringliteral()->MergeFrom(sliteral.getMessage());
             };
 
+            Value(StringLiteral &&sliteral) : type(STRING_LITERAL) {
+                internal_.mutable_literal()->mutable_stringliteral()->Swap(&sliteral.internal_);
+            };
+
             Value(const DatatypeLiteral &dliteral) : type(DATATYPE_LITERAL) {
                 internal_.mutable_literal()->mutable_dataliteral()->MergeFrom(dliteral.getMessage());
+            };
+
+            Value(DatatypeLiteral &&dliteral) : type(DATATYPE_LITERAL) {
+                internal_.mutable_literal()->mutable_dataliteral()->Swap(&dliteral.internal_);
             };
 
             Value(const std::string &literal) : type(STRING_LITERAL) {
@@ -317,6 +395,14 @@ namespace marmotta {
 
             Value &operator=(const rdf::DatatypeLiteral &literal);
 
+            Value &operator=(rdf::URI &&uri);
+
+            Value &operator=(rdf::BNode &&bnode);
+
+            Value &operator=(rdf::StringLiteral &&literal);
+
+            Value &operator=(rdf::DatatypeLiteral &&literal);
+
             std::string stringValue() const;
 
             std::string as_turtle() const;
@@ -328,6 +414,7 @@ namespace marmotta {
             proto::Value internal_;
 
             friend bool operator==(const Value &lhs, const Value &rhs);
+            friend class Statement;
         };
 
 
@@ -339,14 +426,9 @@ namespace marmotta {
 
             Resource() : type(NONE) { };
 
-            Resource(const proto::Resource& v) : internal_(v) {
-                if (v.has_uri())
-                    type = URI;
-                else if (v.has_bnode())
-                    type = BNODE;
-                else
-                    type = NONE;
-            }
+            Resource(const proto::Resource& v);
+
+            Resource(proto::Resource&& v);
 
             Resource(const std::string &uri) : type(URI) {
                 internal_.mutable_uri()->set_uri(uri);
@@ -364,18 +446,21 @@ namespace marmotta {
                 internal_.mutable_bnode()->MergeFrom(bnode.getMessage());
             }
 
-            Resource &operator=(const rdf::URI &uri) {
-                type = URI;
-                internal_.mutable_uri()->MergeFrom(uri.getMessage());
-                return *this;
+            Resource(rdf::URI &&uri) : type(URI) {
+                internal_.mutable_uri()->Swap(&uri.internal_);
             }
 
-            Resource &operator=(const rdf::BNode &bnode) {
-                type = BNODE;
-                internal_.mutable_bnode()->MergeFrom(bnode.getMessage());
-                return *this;
+            Resource(rdf::BNode &&bnode) : type(BNODE) {
+                internal_.mutable_bnode()->Swap(&bnode.internal_);
             }
 
+            Resource & operator=(const rdf::URI &uri);
+
+            Resource & operator=(const rdf::BNode &bnode);
+
+            Resource & operator=(rdf::URI &&uri);
+
+            Resource & operator=(rdf::BNode &&bnode);
 
             std::string stringValue() const;
 
@@ -388,11 +473,22 @@ namespace marmotta {
             proto::Resource internal_;
 
             friend bool operator==(const Resource &lhs, const Resource &rhs);
+            friend class Statement;
         };
 
 
         class Statement {
         public:
+            Statement(const Statement& other) : internal_(other.internal_) {}
+            Statement(Statement&& other) {
+                internal_.Swap(&other.internal_);
+            }
+
+            Statement(const proto::Statement& other) : internal_(other) {}
+            Statement(proto::Statement&& other) {
+                internal_.Swap(&other);
+            }
+
             Statement(Resource const &subject, URI const &predicate, Value const &object) {
                 internal_.mutable_subject()->MergeFrom(subject.getMessage());
                 internal_.mutable_predicate()->MergeFrom(predicate.getMessage());
@@ -405,6 +501,20 @@ namespace marmotta {
                 internal_.mutable_predicate()->MergeFrom(predicate.getMessage());
                 internal_.mutable_object()->MergeFrom(object.getMessage());
                 internal_.mutable_context()->MergeFrom(context.getMessage());
+            }
+
+            Statement(Resource &&subject, URI &&predicate, Value &&object) {
+                internal_.mutable_subject()->Swap(&subject.internal_);
+                internal_.mutable_predicate()->Swap(&predicate.internal_);
+                internal_.mutable_object()->Swap(&object.internal_);
+            }
+
+
+            Statement(Resource &&subject, URI &&predicate, Value &&object, Resource &&context) {
+                internal_.mutable_subject()->Swap(&subject.internal_);
+                internal_.mutable_predicate()->Swap(&predicate.internal_);
+                internal_.mutable_object()->Swap(&object.internal_);
+                internal_.mutable_context()->Swap(&context.internal_);
             }
 
 

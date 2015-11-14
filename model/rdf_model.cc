@@ -117,6 +117,31 @@ namespace marmotta {
             return *this;
         }
 
+        Value &Value::operator=(marmotta::rdf::URI &&_uri) {
+            type = URI;
+            internal_.mutable_resource()->mutable_uri()->Swap(&_uri.internal_);
+            return *this;
+        }
+
+
+        Value &Value::operator=(BNode &&_bnode) {
+            type = BNODE;
+            internal_.mutable_resource()->mutable_bnode()->Swap(&_bnode.internal_);
+            return *this;
+        }
+
+        Value &Value::operator=(StringLiteral &&literal) {
+            type = STRING_LITERAL;
+            internal_.mutable_literal()->mutable_stringliteral()->Swap(&literal.internal_);
+            return *this;
+        }
+
+        Value &Value::operator=(DatatypeLiteral &&literal) {
+            type = DATATYPE_LITERAL;
+            internal_.mutable_literal()->mutable_dataliteral()->Swap(&literal.internal_);
+            return *this;
+        }
+
         std::string Value::stringValue() const {
             switch (type) {
                 case URI:
@@ -193,5 +218,80 @@ namespace marmotta {
 
         }
 
+        Value::Value(const proto::Value& v) : internal_(v) {
+            if (v.has_resource()) {
+                if (v.resource().has_uri())
+                    type = URI;
+                else
+                    type = BNODE;
+            } else if (v.has_literal()) {
+                if (v.literal().has_stringliteral())
+                    type = STRING_LITERAL;
+                else
+                    type = DATATYPE_LITERAL;
+            } else {
+                type = NONE;
+            }
+        }
+
+        Value::Value(proto::Value&& v) {
+            if (v.has_resource()) {
+                if (v.resource().has_uri())
+                    type = URI;
+                else
+                    type = BNODE;
+            } else if (v.has_literal()) {
+                if (v.literal().has_stringliteral())
+                    type = STRING_LITERAL;
+                else
+                    type = DATATYPE_LITERAL;
+            } else {
+                type = NONE;
+            }
+            internal_.Swap(&v);
+        }
+
+        Resource::Resource(const proto::Resource& v) : internal_(v) {
+            if (v.has_uri())
+                type = URI;
+            else if (v.has_bnode())
+                type = BNODE;
+            else
+                type = NONE;
+        }
+
+        Resource::Resource(proto::Resource&& v) {
+            if (v.has_uri())
+                type = URI;
+            else if (v.has_bnode())
+                type = BNODE;
+            else
+                type = NONE;
+            internal_.Swap(&v);
+        }
+
+        Resource &Resource::operator=(const rdf::URI &uri) {
+            type = URI;
+            internal_.mutable_uri()->MergeFrom(uri.getMessage());
+            return *this;
+        }
+
+        Resource &Resource::operator=(const rdf::BNode &bnode) {
+            type = BNODE;
+            internal_.mutable_bnode()->MergeFrom(bnode.getMessage());
+            return *this;
+        }
+
+        Resource &Resource::operator=(rdf::URI &&uri) {
+            type = URI;
+            internal_.mutable_uri()->Swap(&uri.internal_);
+            return *this;
+        }
+
+        Resource &Resource::operator=(rdf::BNode &&bnode) {
+            type = BNODE;
+            internal_.mutable_bnode()->Swap(&bnode.internal_);
+            return *this;
+        }
     }  // namespace rdf
 }  // namespace marmotta

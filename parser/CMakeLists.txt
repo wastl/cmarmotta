@@ -1,4 +1,4 @@
-include_directories(..)
+include_directories(.. ${CMAKE_CURRENT_BINARY_DIR}/../model)
 
 add_library(marmotta_parser SHARED rdf_parser.h rdf_parser.cc)
 set_target_properties(marmotta_parser PROPERTIES SOVERSION 1)
