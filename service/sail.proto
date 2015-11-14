@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package marmotta.service.proto;
+
+import "model.proto";
+
+message IntResponse {
+    int64 result = 1;
+}
+
+service SailService {
+    rpc AddStatement(stream marmotta.rdf.proto.Statement) returns (IntResponse);
+}

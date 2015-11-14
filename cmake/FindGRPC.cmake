@@ -40,8 +40,8 @@ function(PROTOBUF_GENERATE_GRPC_CPP SRCS HDRS)
     list(APPEND ${HDRS} "${CMAKE_CURRENT_BINARY_DIR}/${FIL_WE}.grpc.pb.h")
 
     add_custom_command(
-      OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${FIL_WE}.pb.cc"
-             "${CMAKE_CURRENT_BINARY_DIR}/${FIL_WE}.pb.h"
+      OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${FIL_WE}.grpc.pb.cc"
+             "${CMAKE_CURRENT_BINARY_DIR}/${FIL_WE}.grpc.pb.h"
       COMMAND  ${PROTOBUF_PROTOC_EXECUTABLE}
       ARGS --grpc_out=${CMAKE_CURRENT_BINARY_DIR}
            --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
