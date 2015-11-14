@@ -16,7 +16,7 @@ add_subdirectory(parser)
 add_subdirectory(serializer)
 add_subdirectory(test)
 
-include_directories(.)
+include_directories(. ${CMAKE_CURRENT_BINARY_DIR}/model)
 include_directories(${PROTOBUF_INCLUDE_DIRS})
 
 add_executable(main main.cc)

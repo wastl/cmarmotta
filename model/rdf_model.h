@@ -72,12 +72,19 @@ namespace marmotta {
                 internal_.Swap(&uri);
             }
 
+            URI(const URI &other) : internal_(other.internal_) {};
+
             URI(URI&& uri) {
                 internal_.Swap(&uri.internal_);
             }
 
             URI &operator=(proto::URI &&other) {
                 internal_.Swap(&other);
+                return *this;
+            }
+
+            URI &operator=(const URI &other) {
+                internal_.MergeFrom(other.internal_);
                 return *this;
             }
 
@@ -132,12 +139,19 @@ namespace marmotta {
                 internal_.Swap(&n);
             };
 
+            BNode(const BNode &n) : internal_(n.internal_) {};
+
             BNode(BNode &&n) {
                 internal_.Swap(&n.internal_);
             };
 
             BNode &operator=(proto::BNode &&other) {
                 internal_.Swap(&other);
+                return *this;
+            };
+
+            BNode &operator=(const BNode &other) {
+                internal_.MergeFrom(other.internal_);
                 return *this;
             };
 
@@ -192,12 +206,19 @@ namespace marmotta {
                 internal_.Swap(&other);
             }
 
+            StringLiteral(const StringLiteral &other) : internal_(other.internal_) {};
+
             StringLiteral(StringLiteral &&other) {
                 internal_.Swap(&other.internal_);
             }
 
             StringLiteral &operator=(proto::StringLiteral &&other) {
                 internal_.Swap(&other);
+                return *this;
+            };
+
+            StringLiteral &operator=(const StringLiteral &other) {
+                internal_.MergeFrom(other.internal_);
                 return *this;
             };
 
@@ -255,12 +276,19 @@ namespace marmotta {
                 internal_.Swap(&other);
             }
 
+            DatatypeLiteral(const DatatypeLiteral &other) : internal_(other.internal_) { };
+
             DatatypeLiteral(DatatypeLiteral &&other) {
                 internal_.Swap(&other.internal_);
             }
 
             DatatypeLiteral &operator=(proto::DatatypeLiteral &&other) {
                 internal_.Swap(&other);
+                return *this;
+            };
+
+            DatatypeLiteral &operator=(const DatatypeLiteral &other) {
+                internal_.MergeFrom(other.internal_);
                 return *this;
             };
 

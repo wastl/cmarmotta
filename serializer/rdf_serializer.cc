@@ -3,6 +3,9 @@
 //
 #include <raptor2/raptor2.h>
 #include "rdf_serializer.h"
+#include <google/protobuf/text_format.h>
+#include <google/protobuf/io/coded_stream.h>
+#include <google/protobuf/io/zero_copy_stream.h>
 
 namespace marmotta {
     static std::map<std::string, rdf::URI> namespacesMap(std::vector<rdf::Namespace> list) {
@@ -62,6 +65,36 @@ namespace marmotta {
 
 
     namespace serializer {
+        Serializer::Serializer(const rdf::URI &baseUri, Format format, std::vector<rdf::Namespace> namespaces) {
+            switch(format) {
+                case PROTO:
+                case PROTO_TEXT:
+                    impl.reset(new ProtoSerializer(baseUri, format, namespaces));
+                    break;
+                default:
+                    impl.reset(new RaptorSerializer(baseUri, format, namespaces));
+            }
+        }
+
+        Serializer::Serializer(const rdf::URI &baseUri, Format format, std::map<std::string, rdf::URI> namespaces) {
+            switch(format) {
+                case PROTO:
+                case PROTO_TEXT:
+                    impl.reset(new ProtoSerializer(baseUri, format, namespaces));
+                    break;
+                default:
+                    impl.reset(new RaptorSerializer(baseUri, format, namespaces));
+            }
+        }
+
+
+        SerializerBase::SerializerBase(const rdf::URI& baseUri, Format format, std::vector<rdf::Namespace> namespaces)
+                : baseUri(baseUri), format(format), namespaces(namespacesMap(namespaces)) { }
+
+        SerializerBase::SerializerBase(const rdf::URI& baseUri, Format format, std::map<std::string, rdf::URI> namespaces)
+                : baseUri(baseUri), format(format), namespaces(namespaces) { }
+
+
         inline std::string raptorFormat(Format format) {
             switch (format) {
                 case Format::RDFXML:
@@ -80,15 +113,31 @@ namespace marmotta {
                     return "json";
                 case Format::SPARQL_JSON:
                     return "json-triples";
+                default:
+                    return "rdfxml";
             }
             return "";
         }
 
-        Serializer::Serializer(const rdf::URI& baseUri, Format format, std::vector<rdf::Namespace> namespaces)
-                : Serializer(baseUri, format, namespacesMap(namespaces)) { }
 
-        Serializer::Serializer(const rdf::URI& baseUri, Format format, std::map<std::string, rdf::URI> namespaces)
-                : namespaces(namespaces), format(format) {
+        RaptorSerializer::RaptorSerializer(const rdf::URI& baseUri, Format format)
+                : SerializerBase(baseUri, format) {
+
+            world = raptor_new_world();
+            base  = raptor_new_uri(world, (unsigned char const *) baseUri.getUri().c_str());
+            initRaptor();
+        }
+
+        RaptorSerializer::RaptorSerializer(const rdf::URI& baseUri, Format format, std::vector<rdf::Namespace> namespaces)
+                : SerializerBase(baseUri, format, namespaces) {
+
+            world = raptor_new_world();
+            base  = raptor_new_uri(world, (unsigned char const *) baseUri.getUri().c_str());
+            initRaptor();
+        }
+
+        RaptorSerializer::RaptorSerializer(const rdf::URI& baseUri, Format format, std::map<std::string, rdf::URI> namespaces)
+                : SerializerBase(baseUri, format, namespaces) {
 
             world = raptor_new_world();
             base  = raptor_new_uri(world, (unsigned char const *) baseUri.getUri().c_str());
@@ -96,7 +145,7 @@ namespace marmotta {
         }
 
 
-        Serializer::~Serializer() {
+        RaptorSerializer::~RaptorSerializer() {
             // check for NULL in case a move operation has set the fields to a null pointer
             if(serializer != NULL)
                 raptor_free_serializer(serializer);
@@ -109,7 +158,8 @@ namespace marmotta {
 
         }
 
-        Serializer::Serializer(const Serializer &other) {
+        /*
+        RaptorSerializer::RaptorSerializer(const RaptorSerializer &other) {
             format = other.format;
             namespaces = other.namespaces;
 
@@ -118,7 +168,7 @@ namespace marmotta {
             initRaptor();
         }
 
-        Serializer::Serializer(Serializer &&other) {
+        RaptorSerializer::RaptorSerializer(RaptorSerializer &&other) {
             format = other.format;
             namespaces = other.namespaces;
             base = other.base;
@@ -130,7 +180,7 @@ namespace marmotta {
             other.world = NULL;
         }
 
-        Serializer &Serializer::operator=(const Serializer &other) {
+        RaptorSerializer &RaptorSerializer::operator=(const RaptorSerializer &other) {
             format = other.format;
             namespaces = other.namespaces;
 
@@ -141,7 +191,7 @@ namespace marmotta {
             return *this;
         }
 
-        Serializer &Serializer::operator=(Serializer &&other) {
+        RaptorSerializer &RaptorSerializer::operator=(RaptorSerializer &&other) {
             format = other.format;
             namespaces = other.namespaces;
             serializer = other.serializer;
@@ -154,11 +204,11 @@ namespace marmotta {
 
             return *this;
         }
+       */
 
-
-        void Serializer::initRaptor() {
+        void RaptorSerializer::initRaptor() {
             serializer = raptor_new_serializer(world, raptorFormat(format).c_str());
-            for(std::pair<std::string, rdf::URI> e : namespaces) {
+            for(const auto &e : namespaces) {
                 raptor_uri* uri = raptor_new_uri(world, (unsigned char const *) e.second.getUri().c_str());
                 raptor_serializer_set_namespace(serializer, uri, (unsigned char const *) e.first.c_str());
             }
@@ -167,56 +217,66 @@ namespace marmotta {
             });
         }
 
-        void Serializer::serialize(const rdf::Statement &stmt, raptor_iostream *stream) {
+        void RaptorSerializer::prepare(std::ostream &out) {
+            stream = raptor_new_iostream_from_handler(world, &out, &raptor_handler);
+            raptor_serializer_start_to_iostream(serializer, base, stream);
+        }
+
+        void RaptorSerializer::serialize(const rdf::Statement &stmt) {
             raptor_statement* triple = raptor_new_statement(world);
 
-            switch (stmt.getSubject().type) {
-                case rdf::Resource::URI:
-                    triple->subject = raptor_new_term_from_uri_string(world,  (unsigned char const *) stmt.getSubject().uri.getUri().c_str());
-                    break;
-                case rdf::Resource::BNODE:
-                    triple->subject = raptor_new_term_from_blank(world, (unsigned char const *) stmt.getSubject().bnode.getId().c_str());
-                    break;
-                default:
-                    throw SerializationError("invalid subject type: " + stmt.getSubject().type);
+            if (stmt.getMessage().subject().has_uri()) {
+                triple->subject = raptor_new_term_from_uri_string(
+                        world, (unsigned char const *) stmt.getMessage().subject().uri().uri().c_str());
+            } else if (stmt.getMessage().subject().has_bnode()) {
+                triple->subject = raptor_new_term_from_blank(
+                        world, (unsigned char const *) stmt.getMessage().subject().bnode().id().c_str());
+            } else {
+                throw SerializationError("invalid subject type");
             }
 
-            triple->predicate = raptor_new_term_from_uri_string(world,  (unsigned char const *) stmt.getPredicate().getUri().c_str());
+            triple->predicate = raptor_new_term_from_uri_string(
+                    world,  (unsigned char const *) stmt.getMessage().predicate().uri().c_str());
 
-            switch (stmt.getObject().type) {
-                case rdf::Value::URI:
-                    triple->object = raptor_new_term_from_uri_string(world,  (unsigned char const *) stmt.getObject().uri.getUri().c_str());
-                    break;
-                case rdf::Value::BNODE:
-                    triple->object = raptor_new_term_from_blank(world, (unsigned char const *) stmt.getObject().bnode.getId().c_str());
-                    break;
-                case rdf::Value::STRING_LITERAL:
+            if (stmt.getMessage().object().has_resource()) {
+                const marmotta::rdf::proto::Resource& r = stmt.getMessage().object().resource();
+                if (r.has_uri()) {
+                    triple->object = raptor_new_term_from_uri_string(
+                            world, (unsigned char const *) r.uri().uri().c_str());
+                } else if(r.has_bnode()) {
+                    triple->object = raptor_new_term_from_blank(
+                            world, (unsigned char const *) r.bnode().id().c_str());
+                } else {
+                    throw SerializationError("invalid object resource type");
+                }
+            } else if (stmt.getMessage().object().has_literal()) {
+                const marmotta::rdf::proto::Literal& l = stmt.getMessage().object().literal();
+                if (l.has_stringliteral()) {
                     triple->object = raptor_new_term_from_counted_literal(
                             world,
-                            (unsigned char const *) stmt.getObject().sliteral.getContent().c_str(), stmt.getObject().sliteral.getContent().size(), NULL,
-                            (unsigned char const *) stmt.getObject().sliteral.getLanguage().c_str(), stmt.getObject().sliteral.getLanguage().size());
-                    break;
-                case rdf::Value::DATATYPE_LITERAL:
+                            (unsigned char const *) l.stringliteral().content().c_str(), l.stringliteral().content().size(), NULL,
+                            (unsigned char const *) l.stringliteral().language().c_str(), l.stringliteral().language().size());
+                } else if(l.has_dataliteral()) {
                     triple->object = raptor_new_term_from_counted_literal(
                             world,
-                            (unsigned char const *) stmt.getObject().tliteral.getContent().c_str(), stmt.getObject().tliteral.getContent().size(),
-                            raptor_new_uri(world, (unsigned char const *) stmt.getObject().tliteral.getDatatype().getUri().c_str()),
+                            (unsigned char const *) l.dataliteral().content().c_str(), l.dataliteral().content().size(),
+                            raptor_new_uri(world, (unsigned char const *) l.dataliteral().datatype().uri().c_str()),
                             (unsigned char const *) "", 0);
-                    break;
-                default:
-                    throw SerializationError("invalid object type: " + stmt.getObject().type);
+                } else {
+                    throw SerializationError("invalid object literal type");
+                }
+            } else {
+                throw SerializationError("invalid object type");
             }
 
-
-            switch (stmt.getContext().type) {
-                case rdf::Resource::URI:
-                    triple->graph = raptor_new_term_from_uri_string(world,  (unsigned char const *) stmt.getContext().uri.getUri().c_str());
-                    break;
-                case rdf::Resource::BNODE:
-                    triple->graph = raptor_new_term_from_blank(world, (unsigned char const *) stmt.getContext().bnode.getId().c_str());
-                    break;
-                default:
-                    throw SerializationError("invalid context type: " + stmt.getContext().type);
+            if (stmt.getMessage().context().has_uri()) {
+                    triple->graph = raptor_new_term_from_uri_string(
+                            world,  (unsigned char const *) stmt.getMessage().context().uri().uri().c_str());
+            } else if (stmt.getMessage().context().has_bnode()) {
+                triple->graph = raptor_new_term_from_blank(
+                        world, (unsigned char const *) stmt.getMessage().context().bnode().id().c_str());
+            } else {
+                    throw SerializationError("invalid context type");
             }
 
             raptor_serializer_serialize_statement(serializer, triple);
@@ -224,12 +284,34 @@ namespace marmotta {
             raptor_free_statement(triple);
         }
 
-        raptor_iostream *Serializer::initIOStream(std::ostream &out) {
-            return raptor_new_iostream_from_handler(world, &out, &raptor_handler);
+        void RaptorSerializer::close() {
+            raptor_serializer_serialize_end(serializer);
+            raptor_free_iostream(stream);
         }
 
-        void Serializer::closeIOStream(raptor_iostream *stream) {
-            raptor_free_iostream(stream);
+        void ProtoSerializer::prepare(std::ostream &out) {
+            out_ = new google::protobuf::io::OstreamOutputStream(&out);
+        }
+
+        void ProtoSerializer::serialize(const rdf::Statement &stmt) {
+            stmts_.add_statement()->MergeFrom(stmt.getMessage());
+        }
+
+        void ProtoSerializer::close() {
+            google::protobuf::io::CodedOutputStream* coded_output =
+                new google::protobuf::io::CodedOutputStream(out_);
+            switch (format) {
+                case PROTO:
+                    stmts_.SerializeToCodedStream(coded_output);
+                    break;
+                case PROTO_TEXT:
+                    google::protobuf::TextFormat::Print(
+                            stmts_, dynamic_cast<google::protobuf::io::ZeroCopyOutputStream*>(out_));
+                    break;
+            }
+            stmts_.Clear();
+            delete coded_output;
+            delete out_;
         }
     }
 }

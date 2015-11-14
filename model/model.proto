@@ -52,3 +52,7 @@ message Statement {
     Value object = 3;
     Resource context = 4;
 }
+
+message Statements {
+    repeated Statement statement = 1;
+}
