@@ -3,11 +3,51 @@ syntax = "proto3";
 package marmotta.service.proto;
 
 import "model.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
 
-message IntResponse {
-    int64 result = 1;
+message NamespaceRequest {
+    string prefix = 1;
+    string uri = 2;
+}
+
+message ContextRequest {
+    repeated marmotta.rdf.proto.Resource context = 1;
 }
 
 service SailService {
-    rpc AddStatement(stream marmotta.rdf.proto.Statement) returns (IntResponse);
+    // Add namespaces to the repository. Accepts a stream of namespaces. Returns the number of
+    // namespaces added.
+    rpc AddNamespaces(stream marmotta.rdf.proto.Namespace) returns (google.protobuf.Int64Value);
+
+    // Return the namespace matching the given request. Either prefix or uri must be given.
+    rpc GetNamespace(NamespaceRequest) returns (marmotta.rdf.proto.Namespace);
+
+    rpc GetNamespaces(google.protobuf.Empty) returns (stream marmotta.rdf.proto.Namespace);
+
+    // Delete the namespace given as argument.
+    rpc RemoveNamespace(marmotta.rdf.proto.Namespace) returns (google.protobuf.Int64Value);
+
+    // Add statements to the repository. Accepts a stream of statements. Returns the number of
+    // statements added.
+    rpc AddStatements(stream marmotta.rdf.proto.Statement) returns (google.protobuf.Int64Value);
+
+    // List statements matching a statement pattern. Fields of Statement not set are considered
+    // to be wildcards. Returns a stream of statements.
+    rpc GetStatements(marmotta.rdf.proto.Statement) returns (stream marmotta.rdf.proto.Statement);
+
+    // Delete statements matching a statement pattern.  Fields of Statement not set are considered
+    // to be wildcards. Returns the number of statements deleted.
+    rpc RemoveStatements(marmotta.rdf.proto.Statement) returns (google.protobuf.Int64Value);
+
+    // Return the set of all unique context identifiers used to store statements.
+    rpc GetContexts(google.protobuf.Empty) returns (stream marmotta.rdf.proto.Resource);
+
+    // Remove all statements in the contexts specified in the request. If no contexts are specified,
+    // clears the complete repository.
+    rpc Clear(ContextRequest) returns (google.protobuf.Int64Value);
+
+    // Count the number of statements in the contexts specified in the request. If no contexts are
+    // specified, counts all statements.
+    rpc Size(ContextRequest) returns (google.protobuf.Int64Value);
 }
