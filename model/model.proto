@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+option cc_enable_arenas = true;
+
+package marmotta.rdf.proto;
+
+message Namespace {
+    string prefix = 1;
+    string uri = 2;
+}
+
+message URI {
+    string uri = 1;
+}
+
+message BNode {
+    string id = 1;
+}
+
+message Resource {
+    oneof Resources {
+        URI uri = 1;
+        BNode bnode = 2;
+    }
+}
+
+message StringLiteral {
+    string content = 1;
+    string language = 2;
+}
+
+message DatatypeLiteral {
+    string content = 1;
+    URI datatype = 2;
+}
+
+message Literal {
+    oneof Literals {
+        StringLiteral stringliteral = 1;
+        DatatypeLiteral dataliteral = 2;
+    }
+}
+
+message Value {
+    oneof Values {
+        Resource resource = 1;
+        Literal literal = 2;
+    }
+}
+
+message Statement {
+    Resource subject = 1;
+    URI predicate = 2;
+    Value object = 3;
+    Resource context = 4;
+}
