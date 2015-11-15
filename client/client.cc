@@ -10,6 +10,7 @@
 #include <grpc++/security/credentials.h>
 #include <grpc++/support/sync_stream.h>
 
+#include <google/protobuf/text_format.h>
 #include <google/protobuf/wrappers.pb.h>
 
 #include "model/rdf_model.h"
@@ -25,6 +26,7 @@ using grpc::ClientReader;
 using grpc::ClientReaderWriter;
 using grpc::ClientWriter;
 using grpc::Status;
+using google::protobuf::TextFormat;
 
 using namespace marmotta;
 namespace svc = marmotta::service::proto;
@@ -133,9 +135,17 @@ int main(int argc, const char** argv) {
     MarmottaClient client(
             grpc::CreateChannel("localhost:10000", grpc::InsecureCredentials()));
 
-    std::ifstream in(argv[1]);
-    std::cout << "Importing " << argv[1] << " ... " << std::endl;
-    client.importDataset(in, parser::Format::RDFXML);
-    std::cout << "Finished!" << std::endl;
+    if ("import" == std::string(argv[1])) {
+        std::ifstream in(argv[1]);
+        std::cout << "Importing " << argv[1] << " ... " << std::endl;
+        client.importDataset(in, parser::Format::RDFXML);
+        std::cout << "Finished!" << std::endl;
+    }
+
+    if ("select" == std::string(argv[1])) {
+        rdf::proto::Statement query;
+        TextFormat::ParseFromString(argv[2], &query);
+        client.queryDataset(rdf::Statement(query), std::cout, serializer::Format::NTRIPLES);
+    }
 
 }

@@ -7,6 +7,8 @@
 #include "leveldb/write_batch.h"
 #include "model/rdf_operators.h"
 
+#include <grpc++/support/sync_stream.h>
+
 using grpc::Status;
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -240,6 +242,7 @@ Status LevelDBService::GetStatements(
             result->Write(stmt);
         }
     }
+    return Status::OK;
 }
 
 
