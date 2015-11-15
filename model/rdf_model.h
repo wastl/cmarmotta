@@ -16,6 +16,14 @@ namespace rdf {
 class Namespace {
  public:
 
+    Namespace(const char* prefix, const char* uri)  {
+        // Raptor sends us a nullptr for the base NS.
+        if (prefix != nullptr) {
+            internal_.set_prefix(prefix);
+        }
+        internal_.set_uri(uri);
+    }
+
     Namespace(const std::string &prefix, const std::string &uri)  {
         internal_.set_prefix(prefix);
         internal_.set_uri(uri);

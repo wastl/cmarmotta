@@ -13,6 +13,8 @@
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/wrappers.pb.h>
 
+#include <gflags/gflags.h>
+
 #include "model/rdf_model.h"
 #include "parser/rdf_parser.h"
 #include "serializer/rdf_serializer.h"
@@ -92,7 +94,7 @@ class MarmottaClient {
         std::unique_ptr<ClientWriter<rdf::proto::Statement> > stmtwriter(
                 stub_->AddStatements(&stmtcontext, &stmtstats));
 
-        parser::Parser p("http://www.example.com", parser::Format::RDFXML);
+        parser::Parser p("http://www.example.com", format);
         p.setStatementHandler([&stmtwriter](const rdf::Statement& stmt) {
             stmtwriter->Write(stmt.getMessage());
         });
@@ -131,21 +133,33 @@ class MarmottaClient {
 };
 
 
-int main(int argc, const char** argv) {
+DEFINE_string(format, "rdfxml", "RDF format to use for parsing/serializing.");
+DEFINE_string(host, "localhost", "Address/name of server to access.");
+DEFINE_string(port, "10000", "Port of server to access.");
+DEFINE_string(output, "", "File to write result to.");
+
+int main(int argc, char** argv) {
+    google::ParseCommandLineFlags(&argc, &argv, true);
+
     MarmottaClient client(
-            grpc::CreateChannel("localhost:10000", grpc::InsecureCredentials()));
+            grpc::CreateChannel(FLAGS_host + ":" + FLAGS_port, grpc::InsecureCredentials()));
 
     if ("import" == std::string(argv[1])) {
-        std::ifstream in(argv[1]);
-        std::cout << "Importing " << argv[1] << " ... " << std::endl;
-        client.importDataset(in, parser::Format::RDFXML);
+        std::ifstream in(argv[2]);
+        std::cout << "Importing " << argv[2] << " ... " << std::endl;
+        client.importDataset(in, parser::FormatFromString(FLAGS_format));
         std::cout << "Finished!" << std::endl;
     }
 
     if ("select" == std::string(argv[1])) {
         rdf::proto::Statement query;
         TextFormat::ParseFromString(argv[2], &query);
-        client.queryDataset(rdf::Statement(query), std::cout, serializer::Format::NTRIPLES);
+        if (FLAGS_output != "") {
+            std::ofstream out(FLAGS_output);
+            client.queryDataset(rdf::Statement(query), out, serializer::FormatFromString(FLAGS_format));
+        } else {
+            client.queryDataset(rdf::Statement(query), std::cout, serializer::FormatFromString(FLAGS_format));
+        }
     }
 
 }
