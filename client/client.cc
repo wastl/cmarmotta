@@ -118,7 +118,7 @@ class MarmottaClient {
     }
 
 
-    void queryDataset(const rdf::Statement& pattern, std::ostream& out, serializer::Format format) {
+    void patternQuery(const rdf::Statement &pattern, std::ostream &out, serializer::Format format) {
         ClientContext context;
 
         std::unique_ptr<ClientReader<rdf::proto::Statement> > reader(
@@ -126,6 +126,18 @@ class MarmottaClient {
 
         serializer::Serializer serializer("http://www.example.com", format);
         serializer.serialize(StatementReader(reader.get()), StatementReader::end(), out);
+    }
+
+    void patternDelete(const rdf::Statement &pattern) {
+        ClientContext context;
+        google::protobuf::Int64Value result;
+
+        Status status = stub_->RemoveStatements(&context, pattern.getMessage(), &result);
+        if (status.ok()) {
+            std::cout << "Deleted " << result.value() << " statements." << std::endl;
+        } else {
+            std::cerr << "Failed deleting statements: " << status.error_message() << std::endl;
+        }
     }
 
  private:
@@ -156,10 +168,16 @@ int main(int argc, char** argv) {
         TextFormat::ParseFromString(argv[2], &query);
         if (FLAGS_output != "") {
             std::ofstream out(FLAGS_output);
-            client.queryDataset(rdf::Statement(query), out, serializer::FormatFromString(FLAGS_format));
+            client.patternQuery(rdf::Statement(query), out, serializer::FormatFromString(FLAGS_format));
         } else {
-            client.queryDataset(rdf::Statement(query), std::cout, serializer::FormatFromString(FLAGS_format));
+            client.patternQuery(rdf::Statement(query), std::cout, serializer::FormatFromString(FLAGS_format));
         }
+    }
+
+    if ("delete" == std::string(argv[1])) {
+        rdf::proto::Statement query;
+        TextFormat::ParseFromString(argv[2], &query);
+        client.patternDelete(rdf::Statement(query));
     }
 
 }
