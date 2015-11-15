@@ -5,10 +5,9 @@
 #ifndef MARMOTTA_PERSISTENCE_H
 #define MARMOTTA_PERSISTENCE_H
 
+#include <memory>
 #include <string>
 #include <functional>
-
-#include <grpc++/support/sync_stream.h>
 
 #include <leveldb/db.h>
 #include <leveldb/cache.h>
@@ -33,62 +32,29 @@ class KeyComparator : public leveldb::Comparator {
 
 // A STL iterator wrapper around a client reader.
 template <class Proto>
-class ReaderIterator {
+class Iterator {
  public:
-    ReaderIterator() : finished(true) { }
-
-    ReaderIterator(grpc::ServerReader<Proto>* r) : reader(r), finished(false) {
-        // Immediately move to first element.
-        operator++();
-    }
-
-    ReaderIterator& operator++() {
-        if (!finished) {
-            finished = !reader->Read(&buffer);
-        }
-        return *this;
-    }
-
-    Proto& operator*() {
-        return buffer;
-    }
-
-    Proto* operator->() {
-        return &buffer;
-    }
-
-    bool operator==(const ReaderIterator<Proto>& other) {
-        return finished == other.finished;
-    }
-
-    bool operator!=(const ReaderIterator<Proto>& other) {
-        return finished != other.finished;
-    }
-
-    static ReaderIterator<Proto> end() {
-        return ReaderIterator<Proto>();
-    }
-
- private:
-    grpc::ServerReader<Proto>* reader;
-    Proto buffer;
-    bool finished;
+    virtual Iterator<Proto>& operator++() = 0;
+    virtual Proto& operator*() = 0;
+    virtual Proto* operator->() = 0;
+    virtual bool operator==(const Iterator<Proto>& other) = 0;
+    virtual bool operator!=(const Iterator<Proto>& other) = 0;
 };
 
-typedef ReaderIterator<rdf::proto::Statement> StatementIterator;
-typedef ReaderIterator<rdf::proto::Namespace> NamespaceIterator;
+typedef Iterator<rdf::proto::Statement> StatementIterator;
+typedef Iterator<rdf::proto::Namespace> NamespaceIterator;
 
 class LevelDBPersistence {
  public:
     LevelDBPersistence(const std::string& path, int64_t cacheSize);
 
-    int64_t AddNamespaces(NamespaceIterator begin, NamespaceIterator end);
+    int64_t AddNamespaces(NamespaceIterator& begin, const NamespaceIterator& end);
 
-    int64_t AddStatements(StatementIterator begin, StatementIterator end);
+    int64_t AddStatements(StatementIterator& begin, const StatementIterator& end);
 
     void GetStatements(const rdf::proto::Statement& pattern, std::function<void(const rdf::proto::Statement&)> callback);
 
-    void GetNamespaces(const rdf::proto::Statement& pattern, std::function<void(const rdf::proto::Namespace&)> callback);
+    void GetNamespaces(const rdf::proto::Namespace& pattern, std::function<void(const rdf::proto::Namespace&)> callback);
 
     int64_t RemoveStatements(const rdf::proto::Statement& pattern);
 

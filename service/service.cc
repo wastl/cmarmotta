@@ -16,17 +16,65 @@ using marmotta::rdf::proto::Statement;
 using marmotta::rdf::proto::Namespace;
 using marmotta::rdf::proto::Resource;
 using marmotta::service::proto::ContextRequest;
-using marmotta::persistence::NamespaceIterator;
-using marmotta::persistence::StatementIterator;
 
 namespace marmotta {
 namespace service {
+
+// A STL iterator wrapper around a client reader.
+template <class Proto>
+class ReaderIterator : public persistence::Iterator<Proto> {
+ public:
+    ReaderIterator() : finished(true) { }
+
+    ReaderIterator(grpc::ServerReader<Proto>* r) : reader(r), finished(false) {
+        // Immediately move to first element.
+        operator++();
+    }
+
+    persistence::Iterator<Proto>& operator++() override {
+        if (!finished) {
+            finished = !reader->Read(&buffer);
+        }
+        return *this;
+    }
+
+    Proto& operator*() override {
+        return buffer;
+    }
+
+    Proto* operator->() override {
+        return &buffer;
+    }
+
+    bool operator==(const persistence::Iterator<Proto>& other) override {
+        return finished == static_cast<const ReaderIterator<Proto>&>(other).finished;
+    }
+
+    bool operator!=(const persistence::Iterator<Proto>& other) override {
+        return finished != static_cast<const ReaderIterator<Proto>&>(other).finished;
+    }
+
+    static ReaderIterator<Proto> end() {
+        return ReaderIterator<Proto>();
+    }
+
+ private:
+    grpc::ServerReader<Proto>* reader;
+    Proto buffer;
+    bool finished;
+};
+
+typedef ReaderIterator<rdf::proto::Statement> StatementIterator;
+typedef ReaderIterator<rdf::proto::Namespace> NamespaceIterator;
+
 
 
 Status LevelDBService::AddNamespaces(
         ServerContext* context, ServerReader<Namespace>* reader, Int64Value* result) {
 
-    int64_t count = persistence.AddNamespaces(NamespaceIterator(reader), NamespaceIterator::end());
+    auto begin = NamespaceIterator(reader);
+    auto end   = NamespaceIterator::end();
+    int64_t count = persistence.AddNamespaces(begin, end);
     result->set_value(count);
 
     return Status::OK;
@@ -35,7 +83,9 @@ Status LevelDBService::AddNamespaces(
 Status LevelDBService::AddStatements(
         ServerContext* context, ServerReader<Statement>* reader, Int64Value* result) {
 
-    int64_t count = persistence.AddStatements(StatementIterator(reader), StatementIterator::end());
+    auto begin = StatementIterator(reader);
+    auto end   = StatementIterator::end();
+    int64_t count = persistence.AddStatements(begin, end);
     result->set_value(count);
 
     return Status::OK;

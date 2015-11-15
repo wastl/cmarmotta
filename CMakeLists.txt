@@ -21,8 +21,3 @@ add_subdirectory(parser)
 add_subdirectory(serializer)
 add_subdirectory(test)
 
-include_directories(. ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_BINARY_DIR}/model)
-include_directories(${PROTOBUF_INCLUDE_DIRS})
-
-add_executable(main main.cc)
-target_link_libraries(main marmotta_model marmotta_parser marmotta_serializer)

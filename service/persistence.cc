@@ -2,9 +2,6 @@
 // Created by wastl on 15.11.15.
 //
 
-// Needed for implementing the iterator
-#include "service/sail.grpc.pb.h"
-
 #include "persistence.h"
 #include "leveldb/write_batch.h"
 #include "model/rdf_operators.h"
@@ -190,13 +187,13 @@ LevelDBPersistence::LevelDBPersistence(const std::string &path, int64_t cacheSiz
         , db_ns_prefix(buildDB(path, "ns_prefix", *options)), db_ns_url(buildDB(path, "ns_url", *options)) { }
 
 
-int64_t LevelDBPersistence::AddNamespaces(NamespaceIterator begin, NamespaceIterator end) {
+int64_t LevelDBPersistence::AddNamespaces(NamespaceIterator& begin, const NamespaceIterator& end) {
     int64_t count = 0;
 
     leveldb::WriteBatch batch_prefix, batch_url;
 
     std::string buffer;
-    for (auto it = begin; begin != end; ++it) {
+    for (auto& it = begin; begin != end; ++it) {
         it->SerializeToString(&buffer);
         batch_prefix.Put(it->prefix(), buffer);
         batch_url.Put(it->uri(), buffer);
@@ -208,12 +205,12 @@ int64_t LevelDBPersistence::AddNamespaces(NamespaceIterator begin, NamespaceIter
     return count;
 }
 
-int64_t LevelDBPersistence::AddStatements(StatementIterator begin, StatementIterator end) {
+int64_t LevelDBPersistence::AddStatements(StatementIterator& begin, const StatementIterator& end) {
     int64_t count = 0;
 
     leveldb::WriteBatch batch_spoc, batch_cspo, batch_opsc, batch_cops;
     std::string buffer, bufs, bufp, bufo, bufc;
-    for (auto it = begin; begin != end; ++it) {
+    for (auto& it = begin; begin != end; ++it) {
         it->SerializeToString(&buffer);
 
         it->subject().SerializeToString(&bufs);
