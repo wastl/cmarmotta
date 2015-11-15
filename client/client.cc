@@ -8,6 +8,7 @@
 #include <grpc++/client_context.h>
 #include <grpc++/create_channel.h>
 #include <grpc++/security/credentials.h>
+#include <grpc++/support/sync_stream.h>
 
 #include <google/protobuf/wrappers.pb.h>
 
@@ -28,6 +29,50 @@ using grpc::Status;
 using namespace marmotta;
 namespace svc = marmotta::service::proto;
 
+// A STL iterator wrapper around a client reader.
+template <class T, class Proto>
+class ClientReaderIterator {
+ public:
+    ClientReaderIterator() : finished(true) { }
+
+    ClientReaderIterator(ClientReader<Proto>* r) : reader(r), finished(false) {
+        // Immediately move to first element.
+        operator++();
+    }
+
+    ClientReaderIterator& operator++() {
+        if (!finished) {
+            finished = !reader->Read(&buffer);
+            if (finished) {
+                reader->Finish();
+            }
+        }
+        return *this;
+    }
+
+    T operator*() {
+        return T(buffer);
+    }
+
+    bool operator==(const ClientReaderIterator<T, Proto>& other) {
+        return finished == other.finished;
+    }
+
+    bool operator!=(const ClientReaderIterator<T, Proto>& other) {
+        return finished != other.finished;
+    }
+
+    static ClientReaderIterator<T, Proto> end() {
+       return ClientReaderIterator<T, Proto>();
+    }
+
+ private:
+    ClientReader<Proto>* reader;
+    Proto buffer;
+    bool finished;
+};
+
+typedef ClientReaderIterator<rdf::Statement, rdf::proto::Statement> StatementReader;
 
 class MarmottaClient {
  public:
@@ -66,6 +111,17 @@ class MarmottaClient {
         } else {
             std::cout << "Failed writing data to server: " << stmtst.error_message() << std::endl;
         }
+    }
+
+
+    void queryDataset(const rdf::Statement& pattern, std::ostream& out, serializer::Format format) {
+        ClientContext context;
+
+        std::unique_ptr<ClientReader<rdf::proto::Statement> > reader(
+            stub_->GetStatements(&context, pattern.getMessage()));
+
+        serializer::Serializer serializer("http://www.example.com", format);
+        serializer.serialize(StatementReader(reader.get()), StatementReader::end(), out);
     }
 
  private:

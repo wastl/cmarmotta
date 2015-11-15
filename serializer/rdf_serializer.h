@@ -43,7 +43,7 @@ namespace marmotta {
             template <typename Iterator>
             void serialize(Iterator begin, Iterator end, std::ostream& out) {
                 prepare(out);
-                for(auto it=begin; it != end; it++) {
+                for(auto it=begin; it != end; ++it) {
                     serialize(*it);
                 }
                 close();

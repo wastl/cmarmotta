@@ -28,6 +28,10 @@ namespace svc = marmotta::service::proto;
 
 class LevelDBService : public svc::SailService::Service {
  public:
+    enum IndexType {
+        SPOC, CSPO, OPSC, COPS
+    };
+
     LevelDBService(const std::string& path);
 
     grpc::Status AddNamespaces(grpc::ServerContext* context,
@@ -38,6 +42,10 @@ class LevelDBService : public svc::SailService::Service {
                                grpc::ServerReader<rdf::proto::Statement>* reader,
                                google::protobuf::Int64Value* result) override;
 
+    grpc::Status GetStatements(grpc::ServerContext* context,
+                               const rdf::proto::Statement* pattern,
+                               grpc::ServerWriter<rdf::proto::Statement>* result) override;
+
  private:
     // We currently support efficient lookups by subject, context and object.
     std::unique_ptr<leveldb::DB> db_spoc, db_cspo, db_opsc, db_cops, db_ns_prefix, db_ns_url;
@@ -45,7 +53,13 @@ class LevelDBService : public svc::SailService::Service {
     std::hash<std::string> hash_fn;
 
     char* cacheKey(const std::string* a, const std::string* b,
-                   const std::string* c, const std::string* d);
+                   const std::string* c, const std::string* d) const;
+
+    char* maxKey(const std::string* a, const std::string* b,
+                 const std::string* c, const std::string* d) const;
+
+    IndexType indexForPattern(const rdf::proto::Statement* pattern) const;
+
 };
 
 }  // namespace persistence

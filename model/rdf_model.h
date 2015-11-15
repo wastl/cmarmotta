@@ -11,694 +11,536 @@
 #include "model/model.pb.h"
 
 namespace marmotta {
-    namespace rdf {
+namespace rdf {
 
-        class Namespace {
-        public:
+class Namespace {
+ public:
 
-            Namespace(const std::string &prefix, const std::string &uri)  {
-                internal_.set_prefix(prefix);
-                internal_.set_uri(uri);
-            }
+    Namespace(const std::string &prefix, const std::string &uri)  {
+        internal_.set_prefix(prefix);
+        internal_.set_uri(uri);
+    }
 
-            Namespace(const proto::Namespace &ns) : internal_(ns) { };
+    Namespace(const proto::Namespace &ns) : internal_(ns) { };
 
-            Namespace(proto::Namespace &&ns) {
-                internal_.Swap(&ns);
-            };
+    Namespace(proto::Namespace &&ns) {
+        internal_.Swap(&ns);
+    };
 
-            const std::string &getPrefix() const {
-                return internal_.prefix();
-            }
+    const std::string &getPrefix() const {
+        return internal_.prefix();
+    }
 
-            void setPrefix(std::string &prefix) {
-                internal_.set_prefix(prefix);
-            }
+    void setPrefix(std::string &prefix) {
+        internal_.set_prefix(prefix);
+    }
 
-            const std::string &getUri() const {
-                return internal_.uri();
-            }
+    const std::string &getUri() const {
+        return internal_.uri();
+    }
 
-            void setUri(std::string &uri) {
-                internal_.set_uri(uri);
-            }
+    void setUri(std::string &uri) {
+        internal_.set_uri(uri);
+    }
 
-            const proto::Namespace& getMessage() const {
-                return internal_;
-            }
+    const proto::Namespace& getMessage() const {
+        return internal_;
+    }
 
-        private:
-            proto::Namespace internal_;
+ private:
+    proto::Namespace internal_;
+};
 
-            friend bool operator==(const Namespace &lhs, const Namespace &rhs);
-        };
 
+class URI {
+ public:
+    URI() { }
 
-        class URI {
-        public:
-            URI() { }
+    URI(const std::string &uri) {
+        internal_.set_uri(uri);
+    }
 
-            URI(const std::string &uri) {
-                internal_.set_uri(uri);
-            }
+    URI(const char* uri) {
+        internal_.set_uri(uri);
+    }
 
-            URI(const char* uri) {
-                internal_.set_uri(uri);
-            }
+    URI(const proto::URI &uri) : internal_(uri) { }
 
-            URI(const proto::URI &uri) : internal_(uri) { }
+    URI(proto::URI &&uri) {
+        internal_.Swap(&uri);
+    }
 
-            URI(proto::URI &&uri) {
-                internal_.Swap(&uri);
-            }
+    URI(const URI &other) : internal_(other.internal_) {};
 
-            URI(const URI &other) : internal_(other.internal_) {};
+    URI(URI&& uri) {
+        internal_.Swap(&uri.internal_);
+    }
 
-            URI(URI&& uri) {
-                internal_.Swap(&uri.internal_);
-            }
+    URI & operator=(proto::URI &&other);
+    URI & operator=(const URI &other);
+    URI & operator=(URI &&other);
 
-            URI &operator=(proto::URI &&other) {
-                internal_.Swap(&other);
-                return *this;
-            }
+    const std::string &getUri() const {
+        return internal_.uri();
+    }
 
-            URI &operator=(const URI &other) {
-                internal_.MergeFrom(other.internal_);
-                return *this;
-            }
+    void setUri(std::string &uri) {
+        internal_.set_uri(uri);
+    }
 
-            URI &operator=(URI &&other) {
-                internal_.Swap(&other.internal_);
-                return *this;
-            }
+    const std::string &stringValue() const {
+        return internal_.uri();
+    }
 
-            const std::string &getUri() const {
-                return internal_.uri();
-            }
+    std::string as_turtle() const;
 
-            void setUri(std::string &uri) {
-                internal_.set_uri(uri);
-            }
+    const proto::URI& getMessage() const {
+        return internal_;
+    }
 
-            const std::string &stringValue() const {
-                return internal_.uri();
-            }
+ private:
+    proto::URI internal_;
 
-            std::string as_turtle() const;
+    friend class Value;
+    friend class Resource;
+    friend class Statement;
+};
 
-            const proto::URI& getMessage() const {
-                return internal_;
-            }
 
-        private:
-            proto::URI internal_;
+class BNode {
+ public:
+    BNode() { }
 
-            friend bool operator==(const URI &lhs, const URI &rhs);
-            friend class Value;
-            friend class Resource;
-            friend class Statement;
-        };
+    BNode(const std::string &id)  {
+        internal_.set_id(id);
+    }
 
+    BNode(const char* id)  {
+        internal_.set_id(id);
+    }
 
-        class BNode {
-        public:
-            BNode() { }
+    BNode(const proto::BNode &n) : internal_(n) { }
 
-            BNode(const std::string &id)  {
-                internal_.set_id(id);
-            }
+    BNode(proto::BNode &&n) {
+        internal_.Swap(&n);
+    };
 
-            BNode(const char* id)  {
-                internal_.set_id(id);
-            }
+    BNode(const BNode &n) : internal_(n.internal_) {};
 
-            BNode(const proto::BNode &n) : internal_(n) { }
+    BNode(BNode &&n) {
+        internal_.Swap(&n.internal_);
+    };
 
-            BNode(proto::BNode &&n) {
-                internal_.Swap(&n);
-            };
+    BNode & operator=(proto::BNode &&other);;
+    BNode & operator=(const BNode &other);;
+    BNode & operator=(BNode &&other);;
 
-            BNode(const BNode &n) : internal_(n.internal_) {};
+    const std::string &getId() const {
+        return internal_.id();
+    }
 
-            BNode(BNode &&n) {
-                internal_.Swap(&n.internal_);
-            };
+    void setId(std::string &id) {
+        internal_.set_id(id);
+    }
 
-            BNode &operator=(proto::BNode &&other) {
-                internal_.Swap(&other);
-                return *this;
-            };
+    const std::string &stringValue() const {
+        return internal_.id();
+    }
 
-            BNode &operator=(const BNode &other) {
-                internal_.MergeFrom(other.internal_);
-                return *this;
-            };
+    const proto::BNode& getMessage() const {
+        return internal_;
+    }
 
-            BNode &operator=(BNode &&other) {
-                internal_.Swap(&other.internal_);
-                return *this;
-            };
+    std::string as_turtle() const;
 
-            const std::string &getId() const {
-                return internal_.id();
-            }
+ private:
+    proto::BNode internal_;
 
-            void setId(std::string &id) {
-                internal_.set_id(id);
-            }
+    friend class Value;
+    friend class Resource;
+};
 
-            const std::string &stringValue() const {
-                return internal_.id();
-            }
 
-            const proto::BNode& getMessage() const {
-                return internal_;
-            }
+class StringLiteral {
+ public:
+    StringLiteral() { }
 
-            std::string as_turtle() const;
+    StringLiteral(const std::string &content)  {
+        internal_.set_content(content);
+    }
 
-        private:
-            proto::BNode internal_;
+    StringLiteral(const std::string &content, const std::string &language) {
+        internal_.set_content(content);
+        internal_.set_language(language);
+    }
 
-            friend bool operator==(const BNode &lhs, const BNode &rhs);
-            friend class Value;
-            friend class Resource;
-        };
+    StringLiteral(const proto::StringLiteral &other) : internal_(other) { };
 
+    StringLiteral(proto::StringLiteral &&other) {
+        internal_.Swap(&other);
+    }
 
-        class StringLiteral {
-        public:
-            StringLiteral() { }
+    StringLiteral(const StringLiteral &other) : internal_(other.internal_) {};
 
-            StringLiteral(const std::string &content)  {
-                internal_.set_content(content);
-            }
+    StringLiteral(StringLiteral &&other) {
+        internal_.Swap(&other.internal_);
+    }
 
-            StringLiteral(const std::string &content, const std::string &language) {
-                internal_.set_content(content);
-                internal_.set_language(language);
-            }
+    StringLiteral & operator=(proto::StringLiteral &&other);;
+    StringLiteral & operator=(const StringLiteral &other);;
+    StringLiteral & operator=(StringLiteral &&other);;
 
-            StringLiteral(const proto::StringLiteral &other) : internal_(other) { };
+    const std::string &getContent() const {
+        return internal_.content();
+    }
 
-            StringLiteral(proto::StringLiteral &&other) {
-                internal_.Swap(&other);
-            }
+    void setContent(std::string &content) {
+        internal_.set_content(content);
+    }
 
-            StringLiteral(const StringLiteral &other) : internal_(other.internal_) {};
+    const std::string &getLanguage() const {
+        return internal_.language();
+    }
 
-            StringLiteral(StringLiteral &&other) {
-                internal_.Swap(&other.internal_);
-            }
+    void setLanguage(std::string &language) {
+        internal_.set_language(language);
+    }
 
-            StringLiteral &operator=(proto::StringLiteral &&other) {
-                internal_.Swap(&other);
-                return *this;
-            };
+    const std::string &stringValue() const {
+        return internal_.content();
+    }
 
-            StringLiteral &operator=(const StringLiteral &other) {
-                internal_.MergeFrom(other.internal_);
-                return *this;
-            };
+    const proto::StringLiteral& getMessage() const {
+        return internal_;
+    }
 
-            StringLiteral &operator=(StringLiteral &&other) {
-                internal_.Swap(&other.internal_);
-                return *this;
-            };
+    std::string as_turtle() const;
 
-            const std::string &getContent() const {
-                return internal_.content();
-            }
+ private:
+    proto::StringLiteral internal_;
 
-            void setContent(std::string &content) {
-                internal_.set_content(content);
-            }
+    friend class Value;
+};
 
-            const std::string &getLanguage() const {
-                return internal_.language();
-            }
 
-            void setLanguage(std::string &language) {
-                internal_.set_language(language);
-            }
+class DatatypeLiteral {
+ public:
+    DatatypeLiteral() { }
 
-            const std::string &stringValue() const {
-                return internal_.content();
-            }
+    DatatypeLiteral(const std::string &content, URI const &datatype) {
+        internal_.set_content(content);
+        internal_.mutable_datatype()->MergeFrom(datatype.getMessage());
+    }
 
-            const proto::StringLiteral& getMessage() const {
-                return internal_;
-            }
+    DatatypeLiteral(const proto::DatatypeLiteral &other) : internal_(other) { };
 
-            std::string as_turtle() const;
+    DatatypeLiteral(proto::DatatypeLiteral &&other) {
+        internal_.Swap(&other);
+    }
 
-        private:
-            proto::StringLiteral internal_;
+    DatatypeLiteral(const DatatypeLiteral &other) : internal_(other.internal_) { };
 
-            friend bool operator==(const StringLiteral &lhs, const StringLiteral &rhs);
-            friend class Value;
-        };
+    DatatypeLiteral(DatatypeLiteral &&other) {
+        internal_.Swap(&other.internal_);
+    }
 
+    DatatypeLiteral & operator=(proto::DatatypeLiteral &&other);;
+    DatatypeLiteral & operator=(const DatatypeLiteral &other);;
+    DatatypeLiteral & operator=(DatatypeLiteral &&other);;
 
-        class DatatypeLiteral {
-        public:
-            DatatypeLiteral() { }
+    const std::string &getContent() const {
+        return internal_.content();
+    }
 
-            DatatypeLiteral(const std::string &content, URI const &datatype) {
-                internal_.set_content(content);
-                internal_.mutable_datatype()->MergeFrom(datatype.getMessage());
-            }
+    void setContent(std::string &content) {
+        internal_.set_content(content);
+    }
 
-            DatatypeLiteral(const proto::DatatypeLiteral &other) : internal_(other) { };
+    URI getDatatype() const {
+        return URI(internal_.datatype());
+    }
 
-            DatatypeLiteral(proto::DatatypeLiteral &&other) {
-                internal_.Swap(&other);
-            }
+    void setDatatype(const URI &datatype) {
+        internal_.mutable_datatype()->MergeFrom(datatype.getMessage());
+    }
 
-            DatatypeLiteral(const DatatypeLiteral &other) : internal_(other.internal_) { };
+    const std::string &stringValue() const {
+        return internal_.content();
+    }
 
-            DatatypeLiteral(DatatypeLiteral &&other) {
-                internal_.Swap(&other.internal_);
-            }
+    int intValue() const {
+        return std::stoi(getContent());
+    }
 
-            DatatypeLiteral &operator=(proto::DatatypeLiteral &&other) {
-                internal_.Swap(&other);
-                return *this;
-            };
+    operator int() const {
+        return std::stoi(getContent());
+    }
 
-            DatatypeLiteral &operator=(const DatatypeLiteral &other) {
-                internal_.MergeFrom(other.internal_);
-                return *this;
-            };
+    long long longValue() const {
+        return std::stoll(getContent());
+    }
 
-            DatatypeLiteral &operator=(DatatypeLiteral &&other) {
-                internal_.Swap(&other.internal_);
-                return *this;
-            };
+    operator long long() const {
+        return std::stoll(getContent());
+    }
 
-            const std::string &getContent() const {
-                return internal_.content();
-            }
+    float floatValue() const {
+        return std::stof(getContent());
+    }
 
-            void setContent(std::string &content) {
-                internal_.set_content(content);
-            }
+    operator float() const {
+        return std::stof(getContent());
+    }
 
-            URI getDatatype() const {
-                return URI(internal_.datatype());
-            }
+    double doubleValue() const {
+        return std::stod(getContent());
+    }
 
-            void setDatatype(const URI &datatype) {
-                internal_.mutable_datatype()->MergeFrom(datatype.getMessage());
-            }
+    operator double() const {
+        return std::stod(getContent());
+    }
 
-            const std::string &stringValue() const {
-                return internal_.content();
-            }
+    const proto::DatatypeLiteral& getMessage() const {
+        return internal_;
+    }
 
-            int intValue() const {
-                return std::stoi(getContent());
-            }
+    std::string as_turtle() const;
 
-            operator int() const {
-                return std::stoi(getContent());
-            }
+ private:
+    proto::DatatypeLiteral internal_;
 
-            long long longValue() const {
-                return std::stoll(getContent());
-            }
+    friend class Value;
+};
 
-            operator long long() const {
-                return std::stoll(getContent());
-            }
+class Value {
+ public:
+    enum {
+        URI = 1, BNODE, STRING_LITERAL, DATATYPE_LITERAL, NONE
+    } type;
 
-            float floatValue() const {
-                return std::stof(getContent());
-            }
+    Value() : type(NONE) { }
 
-            operator float() const {
-                return std::stof(getContent());
-            }
+    Value(const proto::Value& v);
 
-            double doubleValue() const {
-                return std::stod(getContent());
-            }
+    Value(proto::Value&& v);
 
-            operator double() const {
-                return std::stod(getContent());
-            }
+    Value(const marmotta::rdf::URI &uri) : type(URI) {
+        internal_.mutable_resource()->mutable_uri()->MergeFrom(uri.getMessage());
+    }
 
-            const proto::DatatypeLiteral& getMessage() const {
-                return internal_;
-            }
+    Value(marmotta::rdf::URI &&uri) : type(URI) {
+        internal_.mutable_resource()->mutable_uri()->Swap(&uri.internal_);
+    }
 
-            std::string as_turtle() const;
+    Value(const BNode &bnode) : type(BNODE) {
+        internal_.mutable_resource()->mutable_bnode()->MergeFrom(bnode.getMessage());
+    }
 
-        private:
-            proto::DatatypeLiteral internal_;
+    Value(BNode &&bnode) : type(BNODE) {
+        internal_.mutable_resource()->mutable_bnode()->Swap(&bnode.internal_);
+    }
 
-            friend bool operator==(const DatatypeLiteral &lhs, const DatatypeLiteral &rhs);
-            friend class Value;
-        };
+    Value(const StringLiteral &sliteral) : type(STRING_LITERAL) {
+        internal_.mutable_literal()->mutable_stringliteral()->MergeFrom(sliteral.getMessage());
+    };
 
-        class Value {
-        public:
-            enum {
-                URI = 1, BNODE, STRING_LITERAL, DATATYPE_LITERAL, NONE
-            } type;
+    Value(StringLiteral &&sliteral) : type(STRING_LITERAL) {
+        internal_.mutable_literal()->mutable_stringliteral()->Swap(&sliteral.internal_);
+    };
 
-            Value() : type(NONE) { }
+    Value(const DatatypeLiteral &dliteral) : type(DATATYPE_LITERAL) {
+        internal_.mutable_literal()->mutable_dataliteral()->MergeFrom(dliteral.getMessage());
+    };
 
-            Value(const proto::Value& v);
+    Value(DatatypeLiteral &&dliteral) : type(DATATYPE_LITERAL) {
+        internal_.mutable_literal()->mutable_dataliteral()->Swap(&dliteral.internal_);
+    };
 
-            Value(proto::Value&& v);
+    Value(const std::string &literal) : type(STRING_LITERAL) {
+        internal_.mutable_literal()->mutable_stringliteral()->set_content(literal);
+    };
 
-            Value(const marmotta::rdf::URI &uri) : type(URI) {
-                internal_.mutable_resource()->mutable_uri()->MergeFrom(uri.getMessage());
-            }
+    Value(const char* literal) : type(STRING_LITERAL) {
+        internal_.mutable_literal()->mutable_stringliteral()->set_content(literal);
+    };
 
-            Value(marmotta::rdf::URI &&uri) : type(URI) {
-                internal_.mutable_resource()->mutable_uri()->Swap(&uri.internal_);
-            }
 
-            Value(const BNode &bnode) : type(BNODE) {
-                internal_.mutable_resource()->mutable_bnode()->MergeFrom(bnode.getMessage());
-            }
+    Value &operator=(const rdf::URI &uri);
 
-            Value(BNode &&bnode) : type(BNODE) {
-                internal_.mutable_resource()->mutable_bnode()->Swap(&bnode.internal_);
-            }
+    Value &operator=(const rdf::BNode &bnode);
 
-            Value(const StringLiteral &sliteral) : type(STRING_LITERAL) {
-                internal_.mutable_literal()->mutable_stringliteral()->MergeFrom(sliteral.getMessage());
-            };
+    Value &operator=(const rdf::StringLiteral &literal);
 
-            Value(StringLiteral &&sliteral) : type(STRING_LITERAL) {
-                internal_.mutable_literal()->mutable_stringliteral()->Swap(&sliteral.internal_);
-            };
+    Value &operator=(const rdf::DatatypeLiteral &literal);
 
-            Value(const DatatypeLiteral &dliteral) : type(DATATYPE_LITERAL) {
-                internal_.mutable_literal()->mutable_dataliteral()->MergeFrom(dliteral.getMessage());
-            };
+    Value &operator=(rdf::URI &&uri);
 
-            Value(DatatypeLiteral &&dliteral) : type(DATATYPE_LITERAL) {
-                internal_.mutable_literal()->mutable_dataliteral()->Swap(&dliteral.internal_);
-            };
+    Value &operator=(rdf::BNode &&bnode);
 
-            Value(const std::string &literal) : type(STRING_LITERAL) {
-                internal_.mutable_literal()->mutable_stringliteral()->set_content(literal);
-            };
+    Value &operator=(rdf::StringLiteral &&literal);
 
-            Value(const char* literal) : type(STRING_LITERAL) {
-                internal_.mutable_literal()->mutable_stringliteral()->set_content(literal);
-            };
+    Value &operator=(rdf::DatatypeLiteral &&literal);
 
+    std::string stringValue() const;
 
-            Value &operator=(const rdf::URI &uri);
+    std::string as_turtle() const;
 
-            Value &operator=(const rdf::BNode &bnode);
+    const proto::Value& getMessage() const {
+        return internal_;
+    }
+ private:
+    proto::Value internal_;
 
-            Value &operator=(const rdf::StringLiteral &literal);
+    friend class Statement;
+};
 
-            Value &operator=(const rdf::DatatypeLiteral &literal);
 
-            Value &operator=(rdf::URI &&uri);
+class Resource {
+ public:
+    enum {
+        URI, BNODE, NONE
+    } type;
 
-            Value &operator=(rdf::BNode &&bnode);
+    Resource() : type(NONE) { };
 
-            Value &operator=(rdf::StringLiteral &&literal);
+    Resource(const proto::Resource& v);
 
-            Value &operator=(rdf::DatatypeLiteral &&literal);
+    Resource(proto::Resource&& v);
 
-            std::string stringValue() const;
+    Resource(const std::string &uri) : type(URI) {
+        internal_.mutable_uri()->set_uri(uri);
+    };
 
-            std::string as_turtle() const;
+    Resource(const char* uri) : type(URI) {
+        internal_.mutable_uri()->set_uri(uri);
+    };
 
-            const proto::Value& getMessage() const {
-                return internal_;
-            }
-        private:
-            proto::Value internal_;
+    Resource(const rdf::URI &uri) : type(URI) {
+        internal_.mutable_uri()->MergeFrom(uri.getMessage());
+    }
 
-            friend bool operator==(const Value &lhs, const Value &rhs);
-            friend class Statement;
-        };
+    Resource(const rdf::BNode &bnode) : type(BNODE) {
+        internal_.mutable_bnode()->MergeFrom(bnode.getMessage());
+    }
 
+    Resource(rdf::URI &&uri) : type(URI) {
+        internal_.mutable_uri()->Swap(&uri.internal_);
+    }
 
-        class Resource {
-        public:
-            enum {
-                URI, BNODE, NONE
-            } type;
+    Resource(rdf::BNode &&bnode) : type(BNODE) {
+        internal_.mutable_bnode()->Swap(&bnode.internal_);
+    }
 
-            Resource() : type(NONE) { };
+    Resource & operator=(const rdf::URI &uri);
 
-            Resource(const proto::Resource& v);
+    Resource & operator=(const rdf::BNode &bnode);
 
-            Resource(proto::Resource&& v);
+    Resource & operator=(rdf::URI &&uri);
 
-            Resource(const std::string &uri) : type(URI) {
-                internal_.mutable_uri()->set_uri(uri);
-            };
+    Resource & operator=(rdf::BNode &&bnode);
 
-            Resource(const char* uri) : type(URI) {
-                internal_.mutable_uri()->set_uri(uri);
-            };
+    std::string stringValue() const;
 
-            Resource(const rdf::URI &uri) : type(URI) {
-                internal_.mutable_uri()->MergeFrom(uri.getMessage());
-            }
+    std::string as_turtle() const;
 
-            Resource(const rdf::BNode &bnode) : type(BNODE) {
-                internal_.mutable_bnode()->MergeFrom(bnode.getMessage());
-            }
+    const proto::Resource& getMessage() const {
+        return internal_;
+    }
+ private:
+    proto::Resource internal_;
 
-            Resource(rdf::URI &&uri) : type(URI) {
-                internal_.mutable_uri()->Swap(&uri.internal_);
-            }
+    friend class Statement;
+};
 
-            Resource(rdf::BNode &&bnode) : type(BNODE) {
-                internal_.mutable_bnode()->Swap(&bnode.internal_);
-            }
 
-            Resource & operator=(const rdf::URI &uri);
+class Statement {
+ public:
+    Statement(const Statement& other) : internal_(other.internal_) {}
+    Statement(Statement&& other) {
+        internal_.Swap(&other.internal_);
+    }
 
-            Resource & operator=(const rdf::BNode &bnode);
+    Statement(const proto::Statement& other) : internal_(other) {}
+    Statement(proto::Statement&& other) {
+        internal_.Swap(&other);
+    }
 
-            Resource & operator=(rdf::URI &&uri);
+    Statement(Resource const &subject, URI const &predicate, Value const &object) {
+        internal_.mutable_subject()->MergeFrom(subject.getMessage());
+        internal_.mutable_predicate()->MergeFrom(predicate.getMessage());
+        internal_.mutable_object()->MergeFrom(object.getMessage());
+    }
 
-            Resource & operator=(rdf::BNode &&bnode);
 
-            std::string stringValue() const;
+    Statement(Resource const &subject, URI const &predicate, Value const &object, Resource const &context) {
+        internal_.mutable_subject()->MergeFrom(subject.getMessage());
+        internal_.mutable_predicate()->MergeFrom(predicate.getMessage());
+        internal_.mutable_object()->MergeFrom(object.getMessage());
+        internal_.mutable_context()->MergeFrom(context.getMessage());
+    }
 
-            std::string as_turtle() const;
+    Statement(Resource &&subject, URI &&predicate, Value &&object) {
+        internal_.mutable_subject()->Swap(&subject.internal_);
+        internal_.mutable_predicate()->Swap(&predicate.internal_);
+        internal_.mutable_object()->Swap(&object.internal_);
+    }
 
-            const proto::Resource& getMessage() const {
-                return internal_;
-            }
-        private:
-            proto::Resource internal_;
 
-            friend bool operator==(const Resource &lhs, const Resource &rhs);
-            friend class Statement;
-        };
+    Statement(Resource &&subject, URI &&predicate, Value &&object, Resource &&context) {
+        internal_.mutable_subject()->Swap(&subject.internal_);
+        internal_.mutable_predicate()->Swap(&predicate.internal_);
+        internal_.mutable_object()->Swap(&object.internal_);
+        internal_.mutable_context()->Swap(&context.internal_);
+    }
 
 
-        class Statement {
-        public:
-            Statement(const Statement& other) : internal_(other.internal_) {}
-            Statement(Statement&& other) {
-                internal_.Swap(&other.internal_);
-            }
+    Resource getSubject() const {
+        return Resource(internal_.subject());
+    }
 
-            Statement(const proto::Statement& other) : internal_(other) {}
-            Statement(proto::Statement&& other) {
-                internal_.Swap(&other);
-            }
+    void setSubject(Resource const &subject) {
+        internal_.mutable_subject()->MergeFrom(subject.getMessage());
+    }
 
-            Statement(Resource const &subject, URI const &predicate, Value const &object) {
-                internal_.mutable_subject()->MergeFrom(subject.getMessage());
-                internal_.mutable_predicate()->MergeFrom(predicate.getMessage());
-                internal_.mutable_object()->MergeFrom(object.getMessage());
-            }
+    URI getPredicate() const {
+        return URI(internal_.predicate());
+    }
 
+    void setPredicate(URI const &predicate) {
+        internal_.mutable_predicate()->MergeFrom(predicate.getMessage());
+    }
 
-            Statement(Resource const &subject, URI const &predicate, Value const &object, Resource const &context) {
-                internal_.mutable_subject()->MergeFrom(subject.getMessage());
-                internal_.mutable_predicate()->MergeFrom(predicate.getMessage());
-                internal_.mutable_object()->MergeFrom(object.getMessage());
-                internal_.mutable_context()->MergeFrom(context.getMessage());
-            }
+    Value getObject() const {
+        return Value(internal_.object());
+    }
 
-            Statement(Resource &&subject, URI &&predicate, Value &&object) {
-                internal_.mutable_subject()->Swap(&subject.internal_);
-                internal_.mutable_predicate()->Swap(&predicate.internal_);
-                internal_.mutable_object()->Swap(&object.internal_);
-            }
+    void setObject(Value const &object) {
+        internal_.mutable_object()->MergeFrom(object.getMessage());
+    }
 
+    Resource getContext() const {
+        return Resource(internal_.context());
+    }
 
-            Statement(Resource &&subject, URI &&predicate, Value &&object, Resource &&context) {
-                internal_.mutable_subject()->Swap(&subject.internal_);
-                internal_.mutable_predicate()->Swap(&predicate.internal_);
-                internal_.mutable_object()->Swap(&object.internal_);
-                internal_.mutable_context()->Swap(&context.internal_);
-            }
+    void setContext(Resource const &context) {
+        internal_.mutable_context()->MergeFrom(context.getMessage());
+    }
 
+    bool hasContext() const {
+        return internal_.has_context();
+    }
 
-            Resource getSubject() const {
-                return Resource(internal_.subject());
-            }
+    std::string as_turtle() const;
 
-            void setSubject(Resource const &subject) {
-                internal_.mutable_subject()->MergeFrom(subject.getMessage());
-            }
+    const proto::Statement& getMessage() const {
+        return internal_;
+    }
+ private:
+    proto::Statement internal_;
+};
 
-            URI getPredicate() const {
-                return URI(internal_.predicate());
-            }
 
-            void setPredicate(URI const &predicate) {
-                internal_.mutable_predicate()->MergeFrom(predicate.getMessage());
-            }
-
-            Value getObject() const {
-                return Value(internal_.object());
-            }
-
-            void setObject(Value const &object) {
-                internal_.mutable_object()->MergeFrom(object.getMessage());
-            }
-
-            Resource getContext() const {
-                return Resource(internal_.context());
-            }
-
-            void setContext(Resource const &context) {
-                internal_.mutable_context()->MergeFrom(context.getMessage());
-            }
-
-            bool hasContext() const {
-                return internal_.has_context();
-            }
-
-            std::string as_turtle() const;
-
-            const proto::Statement& getMessage() const {
-                return internal_;
-            }
-        private:
-            proto::Statement internal_;
-
-            friend bool operator==(const Statement &lhs, const Statement &rhs);
-        };
-
-
-
-        inline bool operator==(const proto::Namespace &lhs, const proto::Namespace &rhs) {
-            return lhs.uri() == rhs.uri();
-        }
-
-        inline bool operator!=(const proto::Namespace &lhs, const proto::Namespace &rhs) {
-            return lhs.uri() != rhs.uri();
-        }
-
-        inline bool operator==(const Namespace &lhs, const Namespace &rhs) {
-            return lhs.internal_ == rhs.internal_;
-        }
-
-        inline bool operator!=(const Namespace &lhs, const Namespace &rhs) {
-            return !(lhs == rhs);
-        }
-
-
-        inline bool operator==(const proto::URI &lhs, const proto::URI &rhs) {
-            return lhs.uri() == rhs.uri();
-        }
-
-        inline bool operator!=(const proto::URI &lhs, const proto::URI &rhs) {
-            return lhs.uri() != rhs.uri();
-        }
-
-
-        inline bool operator==(const URI &lhs, const URI &rhs) {
-            return lhs.internal_ == rhs.internal_;
-        }
-
-        inline bool operator!=(const URI &lhs, const URI &rhs) {
-            return !(lhs == rhs);
-        }
-
-
-        inline bool operator==(const proto::BNode &lhs, const proto::BNode &rhs) {
-            return lhs.id() == rhs.id();
-        }
-
-        inline bool operator!=(const proto::BNode &lhs, const proto::BNode &rhs) {
-            return lhs.id() != rhs.id();
-        }
-
-        inline bool operator==(const BNode &lhs, const BNode &rhs) {
-            return lhs.internal_ == rhs.internal_;
-        }
-
-        inline bool operator!=(const BNode &lhs, const BNode &rhs) {
-            return !(lhs == rhs);
-        }
-
-        inline bool operator==(const proto::StringLiteral &lhs, const proto::StringLiteral &rhs) {
-            return lhs.content() == rhs.content() && lhs.language() == rhs.language();
-        }
-
-        inline bool operator!=(const proto::StringLiteral &lhs, const proto::StringLiteral &rhs) {
-            return lhs.content() != rhs.content() || lhs.language() != rhs.language();
-        }
-
-        inline bool operator==(const StringLiteral &lhs, const StringLiteral &rhs) {
-            return lhs.internal_ == rhs.internal_;
-        }
-
-        inline bool operator!=(const StringLiteral &lhs, const StringLiteral &rhs) {
-            return !(lhs == rhs);
-        }
-
-
-        inline bool operator==(const proto::DatatypeLiteral &lhs, const proto::DatatypeLiteral &rhs) {
-            return lhs.content() == rhs.content() && lhs.datatype().uri() == rhs.datatype().uri();
-        }
-
-        inline bool operator!=(const proto::DatatypeLiteral &lhs, const proto::DatatypeLiteral &rhs) {
-            return lhs.content() != rhs.content() || lhs.datatype().uri() != rhs.datatype().uri();
-        }
-
-        inline bool operator==(const DatatypeLiteral &lhs, const DatatypeLiteral &rhs) {
-            return lhs.internal_ == rhs.internal_;
-        }
-
-        inline bool operator!=(const DatatypeLiteral &lhs, const DatatypeLiteral &rhs) {
-            return !(lhs == rhs);
-        };
-
-
-        bool operator==(const Value &lhs, const Value &rhs);
-
-        inline bool operator!=(const Value &lhs, const Value &rhs) {
-            return !(lhs == rhs);
-        };
-
-        bool operator==(const Resource &lhs, const Resource &rhs);
-
-        inline bool operator!=(const Resource &lhs, const Resource &rhs) {
-            return !(lhs == rhs);
-        };
-
-        bool operator==(const Statement &lhs, const Statement &rhs);
-
-        inline bool operator!=(const rdf::Statement &lhs, const rdf::Statement &rhs) {
-            return !(lhs == rhs);
-        };
-
-    }  // namespace rdf
+}  // namespace rdf
 }  // namespace marmotta
 
 
