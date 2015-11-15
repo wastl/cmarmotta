@@ -10,5 +10,5 @@ set_target_properties(marmotta_service PROPERTIES SOVERSION 1)
 target_link_libraries(marmotta_service marmotta_model ${CMAKE_THREAD_LIBS_INIT} ${PROTOBUF_LIBRARIES} ${GRPC_LIBRARIES})
 
 add_executable(marmotta_persistence persistence.cc persistence.h server.cc)
-target_link_libraries(marmotta_persistence marmotta_model marmotta_service ${LevelDB_LIBRARY})
+target_link_libraries(marmotta_persistence marmotta_model marmotta_service ${LevelDB_LIBRARY} ${GFLAGS_LIBRARY})
 
