@@ -3,7 +3,7 @@
 //
 #include <gflags/gflags.h>
 
-#include "persistence.h"
+#include "service/service.h"
 
 using grpc::Status;
 using grpc::Server;
@@ -17,7 +17,7 @@ DEFINE_string(db, "/tmp/testdb", "Path to database. Will be created if non-exist
 int main(int argc, char** argv) {
     google::ParseCommandLineFlags(&argc, &argv, true);
 
-    marmotta::persistence::LevelDBService service(FLAGS_db, 100 * 1048576);
+    marmotta::service::LevelDBService service(FLAGS_db, 100 * 1048576);
 
     ServerBuilder builder;
     builder.AddListeningPort(FLAGS_host + ":" + FLAGS_port, grpc::InsecureServerCredentials());

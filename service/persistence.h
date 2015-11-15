@@ -8,25 +8,16 @@
 #include <string>
 #include <functional>
 
-#include <grpc/grpc.h>
-#include <grpc++/server.h>
-#include <grpc++/server_builder.h>
-#include <grpc++/server_context.h>
-#include <grpc++/security/server_credentials.h>
+#include <grpc++/support/sync_stream.h>
+
 #include <leveldb/db.h>
 #include <leveldb/cache.h>
 #include <leveldb/comparator.h>
 
-#include <google/protobuf/wrappers.pb.h>
-
 #include "model/rdf_model.h"
-#include "service/sail.pb.h"
-#include "service/sail.grpc.pb.h"
 
 namespace marmotta {
 namespace persistence {
-
-namespace svc = marmotta::service::proto;
 
 /**
  * A custom comparator treating the bytes in the key as unsigned char.
@@ -40,27 +31,66 @@ class KeyComparator : public leveldb::Comparator {
     void FindShortSuccessor(std::string*) const { }
 };
 
-
-
-class LevelDBService : public svc::SailService::Service {
+// A STL iterator wrapper around a client reader.
+template <class Proto>
+class ReaderIterator {
  public:
-    LevelDBService(const std::string& path, int64_t cacheSize);
+    ReaderIterator() : finished(true) { }
 
-    grpc::Status AddNamespaces(grpc::ServerContext* context,
-                               grpc::ServerReader<rdf::proto::Namespace>* reader,
-                               google::protobuf::Int64Value* result) override;
+    ReaderIterator(grpc::ServerReader<Proto>* r) : reader(r), finished(false) {
+        // Immediately move to first element.
+        operator++();
+    }
 
-    grpc::Status AddStatements(grpc::ServerContext* context,
-                               grpc::ServerReader<rdf::proto::Statement>* reader,
-                               google::protobuf::Int64Value* result) override;
+    ReaderIterator& operator++() {
+        if (!finished) {
+            finished = !reader->Read(&buffer);
+        }
+        return *this;
+    }
 
-    grpc::Status GetStatements(grpc::ServerContext* context,
-                               const rdf::proto::Statement* pattern,
-                               grpc::ServerWriter<rdf::proto::Statement>* result) override;
+    Proto& operator*() {
+        return buffer;
+    }
 
-    grpc::Status RemoveStatements(grpc::ServerContext* context,
-                                  const rdf::proto::Statement* pattern,
-                                  google::protobuf::Int64Value* result) override;
+    Proto* operator->() {
+        return &buffer;
+    }
+
+    bool operator==(const ReaderIterator<Proto>& other) {
+        return finished == other.finished;
+    }
+
+    bool operator!=(const ReaderIterator<Proto>& other) {
+        return finished != other.finished;
+    }
+
+    static ReaderIterator<Proto> end() {
+        return ReaderIterator<Proto>();
+    }
+
+ private:
+    grpc::ServerReader<Proto>* reader;
+    Proto buffer;
+    bool finished;
+};
+
+typedef ReaderIterator<rdf::proto::Statement> StatementIterator;
+typedef ReaderIterator<rdf::proto::Namespace> NamespaceIterator;
+
+class LevelDBPersistence {
+ public:
+    LevelDBPersistence(const std::string& path, int64_t cacheSize);
+
+    int64_t AddNamespaces(NamespaceIterator begin, NamespaceIterator end);
+
+    int64_t AddStatements(StatementIterator begin, StatementIterator end);
+
+    void GetStatements(const rdf::proto::Statement& pattern, std::function<void(const rdf::proto::Statement&)> callback);
+
+    void GetNamespaces(const rdf::proto::Statement& pattern, std::function<void(const rdf::proto::Namespace&)> callback);
+
+    int64_t RemoveStatements(const rdf::proto::Statement& pattern);
 
  private:
     std::unique_ptr<KeyComparator> comparator;

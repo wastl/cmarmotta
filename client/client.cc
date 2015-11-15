@@ -140,6 +140,17 @@ class MarmottaClient {
         }
     }
 
+    int64_t size(const svc::ContextRequest& r) {
+        ClientContext context;
+        google::protobuf::Int64Value result;
+
+        Status status = stub_->Size(&context, r, &result);
+        if (status.ok()) {
+            return result.value();
+        } else {
+            return -1;
+        }
+    }
  private:
     std::unique_ptr<svc::SailService::Stub> stub_;
 };
@@ -178,6 +189,12 @@ int main(int argc, char** argv) {
         rdf::proto::Statement query;
         TextFormat::ParseFromString(argv[2], &query);
         client.patternDelete(rdf::Statement(query));
+    }
+
+    if ("size" == std::string(argv[1])) {
+        svc::ContextRequest query;
+        TextFormat::ParseFromString(argv[2], &query);
+        std::cout << "Size: " << client.size(query) << std::endl;
     }
 
 }

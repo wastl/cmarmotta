@@ -2,22 +2,16 @@
 // Created by wastl on 15.11.15.
 //
 
+// Needed for implementing the iterator
+#include "service/sail.grpc.pb.h"
+
 #include "persistence.h"
 #include "leveldb/write_batch.h"
 #include "model/rdf_operators.h"
 
-#include <grpc++/support/sync_stream.h>
-
-using grpc::Status;
-using grpc::Server;
-using grpc::ServerBuilder;
-using grpc::ServerContext;
-using grpc::ServerReader;
-using grpc::ServerWriter;
-using google::protobuf::Int64Value;
-using google::protobuf::Message;
 using marmotta::rdf::proto::Statement;
 using marmotta::rdf::proto::Namespace;
+using marmotta::rdf::proto::Resource;
 
 namespace marmotta {
 namespace persistence {
@@ -187,7 +181,7 @@ leveldb::Options* buildOptions(KeyComparator* cmp, leveldb::Cache* cache) {
     return options;
 }
 
-LevelDBService::LevelDBService(const std::string &path, int64_t cacheSize)
+LevelDBPersistence::LevelDBPersistence(const std::string &path, int64_t cacheSize)
         : comparator(new KeyComparator())
         , cache(leveldb::NewLRUCache(cacheSize))
         , options(buildOptions(comparator.get(), cache.get()))
@@ -195,45 +189,37 @@ LevelDBService::LevelDBService(const std::string &path, int64_t cacheSize)
         , db_opsc(buildDB(path, "opsc", *options)), db_cops(buildDB(path, "cops", *options))
         , db_ns_prefix(buildDB(path, "ns_prefix", *options)), db_ns_url(buildDB(path, "ns_url", *options)) { }
 
-Status LevelDBService::AddNamespaces(
-        ServerContext* context, ServerReader<Namespace>* reader, Int64Value* result) {
 
+int64_t LevelDBPersistence::AddNamespaces(NamespaceIterator begin, NamespaceIterator end) {
     int64_t count = 0;
 
-    rdf::proto::Namespace ns;
-
     leveldb::WriteBatch batch_prefix, batch_url;
+
     std::string buffer;
-    while (reader->Read(&ns)) {
-        ns.SerializeToString(&buffer);
-        batch_prefix.Put(ns.prefix(), buffer);
-        batch_url.Put(ns.uri(), buffer);
+    for (auto it = begin; begin != end; ++it) {
+        it->SerializeToString(&buffer);
+        batch_prefix.Put(it->prefix(), buffer);
+        batch_url.Put(it->uri(), buffer);
         count++;
     }
     db_ns_prefix->Write(leveldb::WriteOptions(), &batch_prefix);
     db_ns_url->Write(leveldb::WriteOptions(), &batch_url);
 
-    result->set_value(count);
-
-    return Status::OK;
+    return count;
 }
 
-Status LevelDBService::AddStatements(
-        ServerContext* context, ServerReader<Statement>* reader, Int64Value* result) {
-
+int64_t LevelDBPersistence::AddStatements(StatementIterator begin, StatementIterator end) {
     int64_t count = 0;
-
-    rdf::proto::Statement stmt;
 
     leveldb::WriteBatch batch_spoc, batch_cspo, batch_opsc, batch_cops;
     std::string buffer, bufs, bufp, bufo, bufc;
-    while (reader->Read(&stmt)) {
-        stmt.SerializeToString(&buffer);
+    for (auto it = begin; begin != end; ++it) {
+        it->SerializeToString(&buffer);
 
-        stmt.subject().SerializeToString(&bufs);
-        stmt.predicate().SerializeToString(&bufp);
-        stmt.object().SerializeToString(&bufo);
-        stmt.context().SerializeToString(&bufc);
+        it->subject().SerializeToString(&bufs);
+        it->predicate().SerializeToString(&bufp);
+        it->object().SerializeToString(&bufo);
+        it->context().SerializeToString(&bufc);
 
         char* k_spoc = (char*)calloc(32, sizeof(char));
         computeKey(&bufs, &bufp, &bufo, &bufc, k_spoc);
@@ -262,16 +248,15 @@ Status LevelDBService::AddStatements(
     db_cspo->Write(leveldb::WriteOptions(), &batch_cspo);
     db_spoc->Write(leveldb::WriteOptions(), &batch_spoc);
 
-    result->set_value(count);
-
-    return Status::OK;
+    return count;
 }
 
-Status LevelDBService::GetStatements(
-        ServerContext* context, const Statement* pattern, ServerWriter<Statement>* result) {
 
-    PatternQuery query(*pattern);
 
+void LevelDBPersistence::GetStatements(
+        const Statement& pattern, std::function<void(const Statement&)> callback) {
+
+    PatternQuery query(pattern);
 
     leveldb::DB* db;
     char *loKey = query.MinKey();
@@ -298,22 +283,19 @@ Status LevelDBService::GetStatements(
          it->Valid() && it->key().compare(leveldb::Slice(hiKey, 32)) < 0;
          it->Next()) {
         stmt.ParseFromString(it->value().ToString());
-        if (matches(stmt, *pattern)) {
-            result->Write(stmt);
+        if (matches(stmt, pattern)) {
+            callback(stmt);
         }
     }
 
+    delete it;
     free(loKey);
     free(hiKey);
-
-    return Status::OK;
 }
 
-Status LevelDBService::RemoveStatements(
-        ServerContext* context, const Statement* pattern, Int64Value* result) {
 
-    PatternQuery query(*pattern);
-
+int64_t LevelDBPersistence::RemoveStatements(const rdf::proto::Statement& pattern) {
+    PatternQuery query(pattern);
 
     leveldb::DB* db;
     char *loKey = query.MinKey();
@@ -345,7 +327,7 @@ Status LevelDBService::RemoveStatements(
          it->Valid() && it->key().compare(leveldb::Slice(hiKey, 32)) < 0;
          it->Next()) {
         stmt.ParseFromString(it->value().ToString());
-        if (matches(stmt, *pattern)) {
+        if (matches(stmt, pattern)) {
             stmt.subject().SerializeToString(&bufs);
             stmt.predicate().SerializeToString(&bufp);
             stmt.object().SerializeToString(&bufo);
@@ -379,13 +361,13 @@ Status LevelDBService::RemoveStatements(
     db_cspo->Write(leveldb::WriteOptions(), &batch_cspo);
     db_spoc->Write(leveldb::WriteOptions(), &batch_spoc);
 
-    result->set_value(count);
-
+    delete it;
     free(loKey);
     free(hiKey);
 
-    return Status::OK;
+    return count;
 }
+
 
 
 int KeyComparator::Compare(const leveldb::Slice& a, const leveldb::Slice& b) const {
