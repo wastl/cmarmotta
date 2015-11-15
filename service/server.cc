@@ -13,11 +13,12 @@ using grpc::ServerBuilder;
 DEFINE_string(host, "0.0.0.0", "Address/name of server to access.");
 DEFINE_string(port, "10000", "Port of server to access.");
 DEFINE_string(db, "/tmp/testdb", "Path to database. Will be created if non-existant.");
+DEFINE_int64(cache_size, 100 * 1048576, "Cache size used by the database (in bytes).");
 
 int main(int argc, char** argv) {
     google::ParseCommandLineFlags(&argc, &argv, true);
 
-    marmotta::service::LevelDBService service(FLAGS_db, 100 * 1048576);
+    marmotta::service::LevelDBService service(FLAGS_db, FLAGS_cache_size);
 
     ServerBuilder builder;
     builder.AddListeningPort(FLAGS_host + ":" + FLAGS_port, grpc::InsecureServerCredentials());

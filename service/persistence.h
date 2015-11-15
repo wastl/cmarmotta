@@ -30,7 +30,7 @@ class KeyComparator : public leveldb::Comparator {
     void FindShortSuccessor(std::string*) const { }
 };
 
-// A STL iterator wrapper around a client reader.
+// Interface for an STL iterator yielding elements of parameterized types.
 template <class Proto>
 class Iterator {
  public:
@@ -41,21 +41,49 @@ class Iterator {
     virtual bool operator!=(const Iterator<Proto>& other) = 0;
 };
 
-typedef Iterator<rdf::proto::Statement> StatementIterator;
-typedef Iterator<rdf::proto::Namespace> NamespaceIterator;
 
+/**
+ * Persistence implementation based on the LevelDB high performance database.
+ */
 class LevelDBPersistence {
  public:
+    typedef Iterator<rdf::proto::Statement> StatementIterator;
+    typedef Iterator<rdf::proto::Namespace> NamespaceIterator;
+
+    typedef std::function<void(const rdf::proto::Statement&)> StatementHandler;
+    typedef std::function<void(const rdf::proto::Namespace&)> NamespaceHandler;
+
+
+    /**
+     * Initialise a new LevelDB database using the given path and cache size (bytes).
+     */
     LevelDBPersistence(const std::string& path, int64_t cacheSize);
 
+    /**
+     * Add the namespaces between begin and end to the database.
+     */
     int64_t AddNamespaces(NamespaceIterator& begin, const NamespaceIterator& end);
 
+    /**
+     * Add the statements between begin and end to the database.
+     */
     int64_t AddStatements(StatementIterator& begin, const StatementIterator& end);
 
-    void GetStatements(const rdf::proto::Statement& pattern, std::function<void(const rdf::proto::Statement&)> callback);
+    /**
+     * Get all statements matching the pattern (which may have some fields
+     * unset to indicate wildcards). Call the callback function for each
+     * result.
+     */
+    void GetStatements(const rdf::proto::Statement& pattern,
+                       StatementHandler callback);
 
-    void GetNamespaces(const rdf::proto::Namespace& pattern, std::function<void(const rdf::proto::Namespace&)> callback);
+    void GetNamespaces(const rdf::proto::Namespace& pattern,
+                       NamespaceHandler callback);
 
+    /**
+     * Remove all statements matching the pattern (which may have some fields
+     * unset to indicate wildcards).
+     */
     int64_t RemoveStatements(const rdf::proto::Statement& pattern);
 
  private:
