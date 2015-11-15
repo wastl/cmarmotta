@@ -116,7 +116,6 @@ namespace marmotta {
                 default:
                     return "rdfxml";
             }
-            return "";
         }
 
 

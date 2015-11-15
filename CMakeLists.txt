@@ -11,14 +11,16 @@ find_package (RAPTOR)
 find_package (Rasqal)
 find_package (Protobuf REQUIRED)
 find_package (GRPC REQUIRED)
+find_package (LevelDB REQUIRED)
 
 add_subdirectory(model)
 add_subdirectory(service)
+add_subdirectory(client)
 add_subdirectory(parser)
 add_subdirectory(serializer)
 add_subdirectory(test)
 
-include_directories(. ${CMAKE_CURRENT_BINARY_DIR}/model)
+include_directories(. ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_BINARY_DIR}/model)
 include_directories(${PROTOBUF_INCLUDE_DIRS})
 
 add_executable(main main.cc)

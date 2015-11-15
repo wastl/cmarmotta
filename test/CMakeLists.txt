@@ -1,4 +1,4 @@
-include_directories(.. ../model ${CMAKE_CURRENT_BINARY_DIR}/../model)
+include_directories(.. ${CMAKE_CURRENT_BINARY_DIR}/..)
 
 add_library(gtest STATIC gtest.h gtest-all.cc)
 

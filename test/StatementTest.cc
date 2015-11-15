@@ -3,7 +3,7 @@
 //
 
 #include "gtest.h"
-#include "rdf_model.h"
+#include "model/rdf_model.h"
 
 namespace marmotta {
 

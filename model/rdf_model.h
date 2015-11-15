@@ -8,7 +8,7 @@
 #include <string>
 #include <iostream>
 
-#include "model.pb.h"
+#include "model/model.pb.h"
 
 namespace marmotta {
     namespace rdf {
