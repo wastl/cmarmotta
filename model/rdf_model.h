@@ -13,9 +13,16 @@
 namespace marmotta {
 namespace rdf {
 
+/**
+ * RDF namespace, consisting of a prefix and a URI.
+ */
 class Namespace {
  public:
 
+    /**
+     * Create a new namespace from the given prefix and uri (0-terminated
+     * C-style strings).
+     */
     Namespace(const char* prefix, const char* uri)  {
         // Raptor sends us a nullptr for the base NS.
         if (prefix != nullptr) {
@@ -24,13 +31,22 @@ class Namespace {
         internal_.set_uri(uri);
     }
 
+    /**
+     * Create a new namespace from the given prefix and uri.
+     */
     Namespace(const std::string &prefix, const std::string &uri)  {
         internal_.set_prefix(prefix);
         internal_.set_uri(uri);
     }
 
+    /**
+     * Create a new namespace from a namespace proto message.
+     */
     Namespace(const proto::Namespace &ns) : internal_(ns) { };
 
+    /**
+     * Create a new namespace from a namespace proto message (move operator).
+     */
     Namespace(proto::Namespace &&ns) {
         internal_.Swap(&ns);
     };
