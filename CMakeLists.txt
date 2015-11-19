@@ -14,6 +14,7 @@ find_package (Protobuf REQUIRED)
 find_package (GRPC REQUIRED)
 find_package (LevelDB REQUIRED)
 
+add_subdirectory(util)
 add_subdirectory(model)
 add_subdirectory(service)
 add_subdirectory(client)
