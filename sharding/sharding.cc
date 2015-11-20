@@ -25,9 +25,10 @@ namespace sharding {
 template<typename Request,
         Status (svc::SailService::Stub::*ClientMethod)(ClientContext*, const Request&, Int64Value*)>
 void Fanout(const Request& request,
-            util::ThreadPool &workers,
             std::vector<std::unique_ptr<svc::SailService::Stub>> &stubs,
             Int64Value *result) {
+    util::ThreadPool workers(stubs.size());
+
     std::vector<ClientContext> contexts(stubs.size());
     std::vector<Int64Value> responses(stubs.size());
     std::vector<Status> statuses(stubs.size());
@@ -38,10 +39,18 @@ void Fanout(const Request& request,
             statuses[i] = ((*stubs[i]).*ClientMethod)(&contexts[i], request, &responses[i]);
         });
     }
+
+    // need to wait until all are completed now.
+    workers.Join();
+
+    int64_t r = 0;
+    for (const auto& v : responses) {
+        r += v.value();
+    }
+    result->set_value(r);
 };
 
-ShardingService::ShardingService(std::vector<std::string> backends)
-        : workers(backends.size()) {
+ShardingService::ShardingService(std::vector<std::string> backends) {
     for (auto backend : backends) {
         stubs.push_back(svc::SailService::NewStub(
                 grpc::CreateChannel(backend, grpc::InsecureCredentials())));
@@ -51,6 +60,8 @@ ShardingService::ShardingService(std::vector<std::string> backends)
 grpc::Status ShardingService::AddNamespaces(grpc::ServerContext *context,
                                             grpc::ServerReader<rdf::proto::Namespace> *reader,
                                             google::protobuf::Int64Value *result) {
+
+    util::ThreadPool workers(stubs.size());
 
     std::vector<ClientContext> contexts(stubs.size());
     std::vector<Int64Value> stats(stubs.size());
@@ -70,6 +81,8 @@ grpc::Status ShardingService::AddNamespaces(grpc::ServerContext *context,
             });
         }
     }
+
+    workers.Join();
 
     for (auto& w : writers) {
         w->WritesDone();
@@ -104,7 +117,7 @@ grpc::Status ShardingService::Clear(grpc::ServerContext *context, const svc::Con
 
 grpc::Status ShardingService::Size(grpc::ServerContext *context, const svc::ContextRequest *contexts,
                                    google::protobuf::Int64Value *result) {
-    Fanout<svc::ContextRequest, &svc::SailService::Stub::Size>(*contexts, workers, stubs, result);
+    Fanout<svc::ContextRequest, &svc::SailService::Stub::Size>(*contexts, stubs, result);
     return Status::OK;
 }
 }

@@ -15,14 +15,11 @@ ThreadPool::ThreadPool(int numWorkers) : running(true) {
 }
 
 ThreadPool::~ThreadPool() {
-    Stop();
-    for (auto &t : workers) {
-        t.join();
-    }
+    Join();
 }
 
 void ThreadPool::Worker() {
-    while (running) {
+    while (running || !taskQueue.empty()) {
         std::unique_lock<std::mutex> lock(taskQueueMutex);
         if (taskQueue.empty()) {
             taskQueueWait.wait(lock);
@@ -43,6 +40,13 @@ void ThreadPool::Schedule(std::function<void()> task) {
 
 void ThreadPool::Stop() {
     running = false;
+}
+
+void ThreadPool::Join() {
+    Stop();
+    for (auto &t : workers) {
+        t.join();
+    }
 }
 }
 }

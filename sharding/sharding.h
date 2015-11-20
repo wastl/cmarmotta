@@ -98,9 +98,6 @@ class ShardingService : public svc::SailService::Service {
     // Hash function, computed over binary representation of statement message,
     // modulo the number of backends.
     std::hash<std::string> hash_fn;
-
-    // Executor pool. Initialised with the same number of workers as backends.
-    util::ThreadPool workers;
 };
 
 

@@ -29,6 +29,8 @@ class ThreadPool {
 
     void Stop();
 
+    void Join();
+
  private:
     bool running;
 
