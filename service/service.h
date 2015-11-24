@@ -13,6 +13,7 @@
 #include <grpc++/server_context.h>
 #include <grpc++/security/server_credentials.h>
 
+#include <google/protobuf/empty.pb.h>
 #include <google/protobuf/wrappers.pb.h>
 
 #include "service/sail.pb.h"
@@ -31,6 +32,14 @@ class LevelDBService : public svc::SailService::Service {
                                grpc::ServerReader<rdf::proto::Namespace>* reader,
                                google::protobuf::Int64Value* result) override;
 
+    grpc::Status GetNamespace(grpc::ServerContext* context,
+                               const rdf::proto::Namespace* pattern,
+                               rdf::proto::Namespace* result) override;
+
+    grpc::Status GetNamespaces(grpc::ServerContext* context,
+                               const google::protobuf::Empty* ignored,
+                               grpc::ServerWriter<rdf::proto::Namespace>* result) override;
+
     grpc::Status AddStatements(grpc::ServerContext* context,
                                grpc::ServerReader<rdf::proto::Statement>* reader,
                                google::protobuf::Int64Value* result) override;
@@ -42,6 +51,10 @@ class LevelDBService : public svc::SailService::Service {
     grpc::Status RemoveStatements(grpc::ServerContext* context,
                                   const rdf::proto::Statement* pattern,
                                   google::protobuf::Int64Value* result) override;
+
+    grpc::Status GetContexts(grpc::ServerContext* context,
+                             const google::protobuf::Empty* ignored,
+                             grpc::ServerWriter<rdf::proto::Resource>* result) override;
 
     grpc::Status Clear(grpc::ServerContext* context,
                        const svc::ContextRequest* contexts,

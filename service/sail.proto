@@ -6,11 +6,6 @@ import "model.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
 
-message NamespaceRequest {
-    string prefix = 1;
-    string uri = 2;
-}
-
 message ContextRequest {
     repeated marmotta.rdf.proto.Resource context = 1;
 }
@@ -21,7 +16,7 @@ service SailService {
     rpc AddNamespaces(stream marmotta.rdf.proto.Namespace) returns (google.protobuf.Int64Value);
 
     // Return the namespace matching the given request. Either prefix or uri must be given.
-    rpc GetNamespace(NamespaceRequest) returns (marmotta.rdf.proto.Namespace);
+    rpc GetNamespace(marmotta.rdf.proto.Namespace) returns (marmotta.rdf.proto.Namespace);
 
     rpc GetNamespaces(google.protobuf.Empty) returns (stream marmotta.rdf.proto.Namespace);
 

@@ -11,6 +11,7 @@
 #include <grpc++/support/sync_stream.h>
 
 #include <google/protobuf/text_format.h>
+#include <google/protobuf/empty.pb.h>
 #include <google/protobuf/wrappers.pb.h>
 
 #include <gflags/gflags.h>
@@ -77,6 +78,7 @@ class ClientReaderIterator {
 };
 
 typedef ClientReaderIterator<rdf::Statement, rdf::proto::Statement> StatementReader;
+typedef ClientReaderIterator<rdf::Namespace, rdf::proto::Namespace> NamespaceReader;
 
 class MarmottaClient {
  public:
@@ -140,6 +142,20 @@ class MarmottaClient {
         }
     }
 
+    void listNamespaces(std::ostream &out) {
+        ClientContext context;
+
+        google::protobuf::Empty pattern;
+
+        std::unique_ptr<ClientReader<rdf::proto::Namespace> > reader(
+                stub_->GetNamespaces(&context, pattern));
+
+        NamespaceReader it(reader.get());
+        for (; it != NamespaceReader::end(); ++it) {
+            out << (*it).getPrefix() << " = " << (*it).getUri() << std::endl;
+        }
+    }
+
     int64_t size(const svc::ContextRequest& r) {
         ClientContext context;
         google::protobuf::Int64Value result;
@@ -197,4 +213,13 @@ int main(int argc, char** argv) {
         std::cout << "Size: " << client.size(query) << std::endl;
     }
 
+
+    if ("namespaces" == std::string(argv[1])) {
+        if (FLAGS_output != "") {
+            std::ofstream out(FLAGS_output);
+            client.listNamespaces(out);
+        } else {
+            client.listNamespaces(std::cout);
+        }
+    }
 }

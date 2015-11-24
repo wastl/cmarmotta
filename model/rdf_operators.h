@@ -123,7 +123,7 @@ inline bool operator!=(const Value &lhs, const Value &rhs) {
     return !operator==(lhs,rhs);
 }
 
-bool operator==(const Resource &lhs, const Resource &rhs) {
+inline bool operator==(const Resource &lhs, const Resource &rhs) {
     return lhs.getMessage() == rhs.getMessage();
 }
 
@@ -131,7 +131,7 @@ inline bool operator!=(const Resource &lhs, const Resource &rhs) {
     return !operator==(lhs,rhs);
 }
 
-bool operator==(const Statement &lhs, const Statement &rhs) {
+inline bool operator==(const Statement &lhs, const Statement &rhs) {
     return lhs.getMessage() == rhs.getMessage();
 }
 
@@ -141,4 +141,87 @@ inline bool operator!=(const Statement &lhs, const Statement &rhs) {
 
 }  // namespace rdf
 }  // namespace marmotta
+
+namespace std {
+
+// Define std::hash specializations for our proto messages. Note that this generic
+// computation serializes the message and is therefore expensive. Consider using
+// specialised implementations instead.
+template<>
+struct hash<google::protobuf::Message> {
+    std::size_t operator()(const google::protobuf::Message &k) const {
+        std::string content;
+        k.SerializeToString(&content);
+        return std::hash<string>()(content);
+    }
+};
+
+// Hash implementation for URIs. Uses a faster implementation than the generic
+// proto message version.
+template<>
+struct hash<marmotta::rdf::proto::URI> {
+    std::size_t operator()(const marmotta::rdf::proto::URI &k) const {
+        return std::hash<std::string>()(k.uri());
+    }
+};
+
+// Hash implementation for BNodes. Uses a faster implementation than the generic
+// proto message version.
+template<>
+struct hash<marmotta::rdf::proto::BNode> {
+    std::size_t operator()(const marmotta::rdf::proto::BNode &k) const {
+        return std::hash<std::string>()(k.id());
+    }
+};
+
+// Hash implementation for Resources. Uses a faster implementation than the generic
+// proto message version.
+template<>
+struct hash<marmotta::rdf::proto::Resource> {
+    std::size_t operator()(const marmotta::rdf::proto::Resource &k) const {
+        if (k.has_uri()) {
+            return std::hash<marmotta::rdf::proto::URI>()(k.uri());
+        } else if (k.has_bnode()) {
+            return std::hash<marmotta::rdf::proto::BNode>()(k.bnode());
+        }
+        return std::hash<google::protobuf::Message>()(k);
+    }
+};
+
+template<>
+struct hash<marmotta::rdf::proto::Value> {
+    std::size_t operator()(const marmotta::rdf::proto::Value &k) const {
+        return std::hash<google::protobuf::Message>()(k);
+    }
+};
+
+template<>
+struct hash<marmotta::rdf::proto::StringLiteral> {
+    std::size_t operator()(const marmotta::rdf::proto::StringLiteral &k) const {
+        return std::hash<google::protobuf::Message>()(k);
+    }
+};
+
+template<>
+struct hash<marmotta::rdf::proto::DatatypeLiteral> {
+    std::size_t operator()(const marmotta::rdf::proto::DatatypeLiteral &k) const {
+        return std::hash<google::protobuf::Message>()(k);
+    }
+};
+
+template<>
+struct hash<marmotta::rdf::proto::Statement> {
+    std::size_t operator()(const marmotta::rdf::proto::Statement &k) const {
+        return std::hash<google::protobuf::Message>()(k);
+    }
+};
+
+template<>
+struct hash<marmotta::rdf::proto::Namespace> {
+    std::size_t operator()(const marmotta::rdf::proto::Namespace &k) const {
+        return std::hash<google::protobuf::Message>()(k);
+    }
+};
+}  // namespace std
+
 #endif //MARMOTTA_RDF_OPERATORS_H

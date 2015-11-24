@@ -77,7 +77,12 @@ class LevelDBPersistence {
     void GetStatements(const rdf::proto::Statement& pattern,
                        StatementHandler callback);
 
-    void GetNamespaces(const rdf::proto::Namespace& pattern,
+    /**
+     * Get all namespaces matching the pattern (which may have some of all
+     * fields unset to indicate wildcards). Call the callback function for
+     * each result.
+     */
+    void GetNamespaces(const rdf::proto::Namespace &pattern,
                        NamespaceHandler callback);
 
     /**

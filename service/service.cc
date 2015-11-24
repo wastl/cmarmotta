@@ -4,7 +4,11 @@
 
 #include "service.h"
 
+#include <unordered_set>
+#include <model/rdf_operators.h>
+
 using grpc::Status;
+using grpc::StatusCode;
 using grpc::Server;
 using grpc::ServerBuilder;
 using grpc::ServerContext;
@@ -12,6 +16,7 @@ using grpc::ServerReader;
 using grpc::ServerWriter;
 using google::protobuf::Int64Value;
 using google::protobuf::Message;
+using google::protobuf::Empty;
 using marmotta::rdf::proto::Statement;
 using marmotta::rdf::proto::Namespace;
 using marmotta::rdf::proto::Resource;
@@ -79,6 +84,30 @@ Status LevelDBService::AddNamespaces(
 
     return Status::OK;
 }
+
+grpc::Status LevelDBService::GetNamespace(
+        ServerContext *context, const rdf::proto::Namespace *pattern, Namespace *result) {
+
+    Status status(StatusCode::NOT_FOUND, "Namespace not found");
+    persistence.GetNamespaces(*pattern, [&result, &status](const Namespace &r) {
+        *result = r;
+        status = Status::OK;
+    });
+
+    return status;
+}
+
+grpc::Status LevelDBService::GetNamespaces(
+        ServerContext *context, const Empty *ignored, ServerWriter<Namespace> *result) {
+
+    Namespace pattern; // empty pattern
+    persistence.GetNamespaces(pattern, [&result](const Namespace &r) {
+        result->Write(r);
+    });
+
+    return Status::OK;
+}
+
 
 Status LevelDBService::AddStatements(
         ServerContext* context, ServerReader<Statement>* reader, Int64Value* result) {
@@ -159,5 +188,22 @@ Status LevelDBService::Size(
 }
 
 
+grpc::Status LevelDBService::GetContexts(
+        ServerContext *context, const Empty *ignored, ServerWriter<Resource> *result) {
+    // Currently we need to iterate over all statements and collect the results.
+    Statement pattern;
+    std::unordered_set<Resource> contexts;
+
+    persistence.GetStatements(pattern, [&contexts](const Statement& stmt) {
+        if (stmt.has_context()) {
+            contexts.insert(stmt.context());
+        }
+    });
+
+    for (auto c : contexts) {
+        result->Write(c);
+    }
+    return Status::OK;
+}
 }  // namespace service
 }  // namespace marmotta

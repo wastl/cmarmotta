@@ -5,5 +5,6 @@ include_directories(
 add_executable(marmotta_sharding sharding.cc sharding.h server.cc)
 target_link_libraries(marmotta_sharding
         marmotta_util marmotta_model marmotta_service
-        ${LevelDB_LIBRARY} ${GFLAGS_LIBRARY})
+        ${LevelDB_LIBRARY} ${GFLAGS_LIBRARY}
+        ${CMAKE_THREAD_LIBS_INIT} ${PROTOBUF_LIBRARIES} ${GRPC_LIBRARIES})
 

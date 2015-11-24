@@ -178,13 +178,20 @@ leveldb::Options* buildOptions(KeyComparator* cmp, leveldb::Cache* cache) {
     return options;
 }
 
+leveldb::Options buildNsOptions() {
+    leveldb::Options options;
+    options.create_if_missing = true;
+    return options;
+}
+
 LevelDBPersistence::LevelDBPersistence(const std::string &path, int64_t cacheSize)
         : comparator(new KeyComparator())
         , cache(leveldb::NewLRUCache(cacheSize))
         , options(buildOptions(comparator.get(), cache.get()))
         , db_spoc(buildDB(path, "spoc", *options)), db_cspo(buildDB(path, "cspo", *options))
         , db_opsc(buildDB(path, "opsc", *options)), db_cops(buildDB(path, "cops", *options))
-        , db_ns_prefix(buildDB(path, "ns_prefix", *options)), db_ns_url(buildDB(path, "ns_url", *options)) { }
+        , db_ns_prefix(buildDB(path, "ns_prefix", buildNsOptions()))
+        , db_ns_url(buildDB(path, "ns_url", buildNsOptions())) { }
 
 
 int64_t LevelDBPersistence::AddNamespaces(NamespaceIterator& begin, const NamespaceIterator& end) {
@@ -204,6 +211,39 @@ int64_t LevelDBPersistence::AddNamespaces(NamespaceIterator& begin, const Namesp
 
     return count;
 }
+
+void LevelDBPersistence::GetNamespaces(
+        const Namespace &pattern, LevelDBPersistence::NamespaceHandler callback) {
+
+    Namespace ns;
+
+    leveldb::DB *db = nullptr;
+    std::string key, value;
+    if (pattern.prefix() != "") {
+        key = pattern.prefix();
+        db = db_ns_prefix.get();
+    } else if(pattern.uri() != "") {
+        key = pattern.uri();
+        db = db_ns_url.get();
+    }
+    if (db != nullptr) {
+        // Either prefix or uri given, report the correct namespace value.
+        leveldb::Status s = db->Get(leveldb::ReadOptions(), key, &value);
+        if (s.ok()) {
+            ns.ParseFromString(value);
+            callback(ns);
+        }
+    } else {
+        // Pattern was empty, iterate over all namespaces and report them.
+        // TODO: fix endless loop
+        std::unique_ptr<leveldb::Iterator> it(db_ns_prefix->NewIterator(leveldb::ReadOptions()));
+        for (it->SeekToFirst(); it->Valid(); it->Next()) {
+            ns.ParseFromArray(it->value().data(), it->value().size());
+            callback(ns);
+        }
+    }
+}
+
 
 int64_t LevelDBPersistence::AddStatements(StatementIterator& begin, const StatementIterator& end) {
     int64_t count = 0;
@@ -379,6 +419,7 @@ int KeyComparator::Compare(const leveldb::Slice& a, const leveldb::Slice& b) con
     }
     return 0;
 }
+
 }  // namespace persistence
 }  // namespace marmotta
 
