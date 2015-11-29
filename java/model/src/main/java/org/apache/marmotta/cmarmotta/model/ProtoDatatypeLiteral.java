@@ -38,6 +38,13 @@ public class ProtoDatatypeLiteral extends ProtoLiteralBase implements Literal {
                 .build();
     }
 
+    public ProtoDatatypeLiteral(String content, String datatype) {
+        this.message = Model.DatatypeLiteral.newBuilder()
+                .setContent(content)
+                .setDatatype(Model.URI.newBuilder().setUri(datatype).build())
+                .build();
+    }
+
     public Model.DatatypeLiteral getMessage() {
         return message;
     }

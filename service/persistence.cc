@@ -224,7 +224,7 @@ LevelDBPersistence::LevelDBPersistence(const std::string &path, int64_t cacheSiz
 
 
 int64_t LevelDBPersistence::AddNamespaces(NamespaceIterator& begin, const NamespaceIterator& end) {
-    LOG(INFO) << "Starting batch namespace import operation.";
+    DLOG(INFO) << "Starting batch namespace import operation.";
     int64_t count = 0;
 
     leveldb::WriteBatch batch_prefix, batch_url;
@@ -236,14 +236,15 @@ int64_t LevelDBPersistence::AddNamespaces(NamespaceIterator& begin, const Namesp
     CHECK_STATUS(db_ns_prefix->Write(leveldb::WriteOptions(), &batch_prefix));
     CHECK_STATUS(db_ns_url->Write(leveldb::WriteOptions(), &batch_url));
 
-    LOG(INFO) << "Imported " << count << " namespaces";
+    DLOG(INFO) << "Imported " << count << " namespaces";
 
     return count;
 }
 
 void LevelDBPersistence::GetNamespaces(
         const Namespace &pattern, LevelDBPersistence::NamespaceHandler callback) {
-    LOG(INFO) << "Get namespaces matching pattern " << pattern.DebugString();
+    DLOG(INFO) << "Get namespaces matching pattern " << pattern.DebugString();
+    int64_t count = 0;
 
     Namespace ns;
 
@@ -262,6 +263,7 @@ void LevelDBPersistence::GetNamespaces(
         if (s.ok()) {
             ns.ParseFromString(value);
             callback(ns);
+            count++;
         }
     } else {
         // Pattern was empty, iterate over all namespaces and report them.
@@ -269,9 +271,10 @@ void LevelDBPersistence::GetNamespaces(
         for (it->SeekToFirst(); it->Valid(); it->Next()) {
             ns.ParseFromArray(it->value().data(), it->value().size());
             callback(ns);
+            count++;
         }
     }
-    LOG(INFO) << "Get namespaces done.";
+    DLOG(INFO) << "Get namespaces done (count=" << count <<")";
 }
 
 
@@ -298,7 +301,8 @@ int64_t LevelDBPersistence::AddStatements(StatementIterator& begin, const Statem
 
 void LevelDBPersistence::GetStatements(
         const Statement& pattern, std::function<void(const Statement&)> callback) {
-    LOG(INFO) << "Get statements matching pattern " << pattern.DebugString();
+    DLOG(INFO) << "Get statements matching pattern " << pattern.DebugString();
+    int64_t count = 0;
 
     PatternQuery query(pattern);
 
@@ -324,11 +328,12 @@ void LevelDBPersistence::GetStatements(
     Statement stmt;
     leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
     for (it->Seek(leveldb::Slice(loKey, 4 * KEY_LENGTH));
-         it->Valid() && it->key().compare(leveldb::Slice(hiKey, 4 * KEY_LENGTH)) < 0;
+         it->Valid() && it->key().compare(leveldb::Slice(hiKey, 4 * KEY_LENGTH)) <= 0;
          it->Next()) {
         stmt.ParseFromString(it->value().ToString());
         if (matches(stmt, pattern)) {
             callback(stmt);
+            count++;
         }
     }
 
@@ -336,12 +341,12 @@ void LevelDBPersistence::GetStatements(
     free(loKey);
     free(hiKey);
 
-    LOG(INFO) << "Get statements done.";
+    DLOG(INFO) << "Get statements done (count=" << count << ").";
 }
 
 
 int64_t LevelDBPersistence::RemoveStatements(const rdf::proto::Statement& pattern) {
-    LOG(INFO) << "Remove statements matching pattern " << pattern.DebugString();
+    DLOG(INFO) << "Remove statements matching pattern " << pattern.DebugString();
 
     int64_t count = 0;
 
@@ -355,7 +360,7 @@ int64_t LevelDBPersistence::RemoveStatements(const rdf::proto::Statement& patter
     CHECK_STATUS(db_cspo->Write(leveldb::WriteOptions(), &batch_cspo));
     CHECK_STATUS(db_spoc->Write(leveldb::WriteOptions(), &batch_spoc));
 
-    LOG(INFO) << "Removed " << count << " statements";
+    DLOG(INFO) << "Removed " << count << " statements";
 
     return count;
 }
@@ -364,7 +369,7 @@ int64_t LevelDBPersistence::RemoveStatements(const rdf::proto::Statement& patter
 
 UpdateStatistics LevelDBPersistence::Update(LevelDBPersistence::UpdateIterator &begin,
                                             const LevelDBPersistence::UpdateIterator &end) {
-    LOG(INFO) << "Starting batch update operation.";
+    DLOG(INFO) << "Starting batch update operation.";
     UpdateStatistics stats;
 
     WriteBatch b_spoc, b_cspo, b_opsc, b_cops, b_prefix, b_url;
@@ -389,7 +394,7 @@ UpdateStatistics LevelDBPersistence::Update(LevelDBPersistence::UpdateIterator &
     CHECK_STATUS(db_ns_prefix->Write(leveldb::WriteOptions(), &b_prefix));
     CHECK_STATUS(db_ns_url->Write(leveldb::WriteOptions(), &b_url));
 
-    LOG(INFO) << "Batch update complete. (statements added: " << stats.added_stmts
+    DLOG(INFO) << "Batch update complete. (statements added: " << stats.added_stmts
             << ", statements removed: " << stats.removed_stmts
             << ", namespaces added: " << stats.added_ns
             << ", namespaces removed: " << stats.removed_ns << ")";
@@ -399,6 +404,8 @@ UpdateStatistics LevelDBPersistence::Update(LevelDBPersistence::UpdateIterator &
 
 void LevelDBPersistence::AddNamespace(
         const Namespace &ns, WriteBatch &ns_prefix, WriteBatch &ns_url) {
+    DLOG(INFO) << "Adding namespace " << ns.DebugString();
+
     std::string buffer;
     ns.SerializeToString(&buffer);
     ns_prefix.Put(ns.prefix(), buffer);
@@ -407,6 +414,7 @@ void LevelDBPersistence::AddNamespace(
 
 void LevelDBPersistence::RemoveNamespace(
         const Namespace &pattern, WriteBatch &ns_prefix, WriteBatch &ns_url) {
+    DLOG(INFO) << "Removing namespaces matching pattern " << pattern.DebugString();
 
     GetNamespaces(pattern, [&ns_prefix, &ns_url](const rdf::proto::Namespace& ns){
         ns_prefix.Delete(ns.prefix());
@@ -418,6 +426,7 @@ void LevelDBPersistence::RemoveNamespace(
 void LevelDBPersistence::AddStatement(
         const Statement &stmt,
         WriteBatch &spoc, WriteBatch &cspo, WriteBatch &opsc, WriteBatch &cops) {
+    DLOG(INFO) << "Adding statement " << stmt.DebugString();
 
     std::string buffer, bufs, bufp, bufo, bufc;
 
@@ -453,10 +462,10 @@ void LevelDBPersistence::AddStatement(
 int64_t LevelDBPersistence::RemoveStatements(
         const Statement& pattern,
         WriteBatch& spoc, WriteBatch& cspo, WriteBatch& opsc, WriteBatch& cops) {
+    DLOG(INFO) << "Removing statements matching " << pattern.DebugString();
 
     int64_t count = 0;
 
-    Statement stmt;
     std::string bufs, bufp, bufo, bufc;
     GetStatements(pattern, [&](const Statement stmt) {
         stmt.subject().SerializeToString(&bufs);

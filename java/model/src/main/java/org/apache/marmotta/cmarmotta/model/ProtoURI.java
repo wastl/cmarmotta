@@ -66,6 +66,11 @@ public class ProtoURI implements URI {
         return message.getUri();
     }
 
+    @Override
+    public String toString() {
+        return message.getUri();
+    }
+
     private void initNamespace() {
         if(namespace == null || localName == null) {
             String[] components = URICommons.splitNamespace(message.getUri());

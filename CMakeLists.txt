@@ -15,6 +15,8 @@ find_package (GRPC REQUIRED)
 find_package (LevelDB REQUIRED)
 find_package (GLog REQUIRED)
 
+add_definitions(-DNDEBUG)
+
 add_subdirectory(util)
 add_subdirectory(model)
 add_subdirectory(service)

@@ -40,7 +40,7 @@ public class ProtoStatement implements Statement {
 
         if (predicate instanceof ProtoURI) {
             builder.setPredicate(((ProtoURI) predicate).getMessage()).build();
-        } else {
+        } else if (predicate instanceof URI){
             builder.getPredicateBuilder().setUri(predicate.stringValue()).build();
         }
 
@@ -57,10 +57,14 @@ public class ProtoStatement implements Statement {
                         .setContent(l.stringValue())
                         .getDatatypeBuilder().setUri(l.getDatatype().stringValue())
                         .build();
-            } else {
+            } else if(l.getLanguage() != null) {
                 builder.getObjectBuilder().getLiteralBuilder().getStringliteralBuilder()
                         .setContent(l.stringValue())
                         .setLanguage(l.getLanguage())
+                        .build();
+            } else {
+                builder.getObjectBuilder().getLiteralBuilder().getStringliteralBuilder()
+                        .setContent(l.stringValue())
                         .build();
             }
         } else if (object instanceof ProtoURI) {
@@ -183,16 +187,18 @@ public class ProtoStatement implements Statement {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
 
-        ProtoStatement that = (ProtoStatement) o;
-
-        return message.equals(that.message);
+        Statement triple = (Statement) o;
+//        changed according to https://openrdf.atlassian.net/browse/SES-1924
+//        if (!getContext().equals(triple.getContext())) return false;
+        if (!getObject().equals(triple.getObject())) return false;
+        if (!getPredicate().equals(triple.getPredicate())) return false;
+        return getSubject().equals(triple.getSubject());
 
     }
 
     @Override
     public int hashCode() {
-        return message.hashCode();
+        return 961 * getSubject().hashCode() + 31 * getPredicate().hashCode() + getObject().hashCode();
     }
 }
