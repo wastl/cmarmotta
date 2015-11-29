@@ -9,6 +9,8 @@
 #include "leveldb/write_batch.h"
 #include "model/rdf_operators.h"
 
+#define CHECK_STATUS(s) CHECK(s.ok()) << "Writing to database failed: " << s.ToString()
+
 #if KEY_LENGTH == 16
 #include "util/murmur3.h"
 #endif
@@ -223,8 +225,8 @@ int64_t LevelDBPersistence::AddNamespaces(NamespaceIterator& begin, const Namesp
         AddNamespace(*it, batch_prefix, batch_url);
         count++;
     }
-    db_ns_prefix->Write(leveldb::WriteOptions(), &batch_prefix);
-    db_ns_url->Write(leveldb::WriteOptions(), &batch_url);
+    CHECK_STATUS(db_ns_prefix->Write(leveldb::WriteOptions(), &batch_prefix));
+    CHECK_STATUS(db_ns_url->Write(leveldb::WriteOptions(), &batch_url));
 
     LOG(INFO) << "Imported " << count << " namespaces";
 
@@ -274,10 +276,10 @@ int64_t LevelDBPersistence::AddStatements(StatementIterator& begin, const Statem
         AddStatement(*it, batch_spoc, batch_cspo, batch_opsc, batch_cops);
         count++;
     }
-    db_cops->Write(leveldb::WriteOptions(), &batch_cops);
-    db_opsc->Write(leveldb::WriteOptions(), &batch_opsc);
-    db_cspo->Write(leveldb::WriteOptions(), &batch_cspo);
-    db_spoc->Write(leveldb::WriteOptions(), &batch_spoc);
+    CHECK_STATUS(db_cops->Write(leveldb::WriteOptions(), &batch_cops));
+    CHECK_STATUS(db_opsc->Write(leveldb::WriteOptions(), &batch_opsc));
+    CHECK_STATUS(db_cspo->Write(leveldb::WriteOptions(), &batch_cspo));
+    CHECK_STATUS(db_spoc->Write(leveldb::WriteOptions(), &batch_spoc));
 
     LOG(INFO) << "Imported " << count << " statements";
 
@@ -340,10 +342,10 @@ int64_t LevelDBPersistence::RemoveStatements(const rdf::proto::Statement& patter
 
     count = RemoveStatements(pattern, batch_spoc, batch_cspo, batch_opsc, batch_cops);
 
-    db_cops->Write(leveldb::WriteOptions(), &batch_cops);
-    db_opsc->Write(leveldb::WriteOptions(), &batch_opsc);
-    db_cspo->Write(leveldb::WriteOptions(), &batch_cspo);
-    db_spoc->Write(leveldb::WriteOptions(), &batch_spoc);
+    CHECK_STATUS(db_cops->Write(leveldb::WriteOptions(), &batch_cops));
+    CHECK_STATUS(db_opsc->Write(leveldb::WriteOptions(), &batch_opsc));
+    CHECK_STATUS(db_cspo->Write(leveldb::WriteOptions(), &batch_cspo));
+    CHECK_STATUS(db_spoc->Write(leveldb::WriteOptions(), &batch_spoc));
 
     LOG(INFO) << "Removed " << count << " statements";
 
@@ -372,12 +374,12 @@ UpdateStatistics LevelDBPersistence::Update(LevelDBPersistence::UpdateIterator &
             RemoveNamespace(it->ns_removed(), b_prefix, b_url);
         }
     }
-    db_cops->Write(leveldb::WriteOptions(), &b_cops);
-    db_opsc->Write(leveldb::WriteOptions(), &b_opsc);
-    db_cspo->Write(leveldb::WriteOptions(), &b_cspo);
-    db_spoc->Write(leveldb::WriteOptions(), &b_spoc);
-    db_ns_prefix->Write(leveldb::WriteOptions(), &b_prefix);
-    db_ns_url->Write(leveldb::WriteOptions(), &b_url);
+    CHECK_STATUS(db_cops->Write(leveldb::WriteOptions(), &b_cops));
+    CHECK_STATUS(db_opsc->Write(leveldb::WriteOptions(), &b_opsc));
+    CHECK_STATUS(db_cspo->Write(leveldb::WriteOptions(), &b_cspo));
+    CHECK_STATUS(db_spoc->Write(leveldb::WriteOptions(), &b_spoc));
+    CHECK_STATUS(db_ns_prefix->Write(leveldb::WriteOptions(), &b_prefix));
+    CHECK_STATUS(db_ns_url->Write(leveldb::WriteOptions(), &b_url));
 
     LOG(INFO) << "Batch update complete. (statements added: " << stats.added_stmts
             << ", statements removed: " << stats.removed_stmts
