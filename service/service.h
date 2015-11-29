@@ -56,6 +56,10 @@ class LevelDBService : public svc::SailService::Service {
                              const google::protobuf::Empty* ignored,
                              grpc::ServerWriter<rdf::proto::Resource>* result) override;
 
+    grpc::Status Update(grpc::ServerContext* context,
+                        grpc::ServerReader<service::proto::UpdateRequest>* reader,
+                        service::proto::UpdateResponse* result) override;
+
     grpc::Status Clear(grpc::ServerContext* context,
                        const svc::ContextRequest* contexts,
                        google::protobuf::Int64Value* result) override;

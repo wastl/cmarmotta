@@ -6,6 +6,7 @@
 #include "leveldb/write_batch.h"
 #include "model/rdf_operators.h"
 
+using leveldb::WriteBatch;
 using marmotta::rdf::proto::Statement;
 using marmotta::rdf::proto::Namespace;
 using marmotta::rdf::proto::Resource;
@@ -199,11 +200,8 @@ int64_t LevelDBPersistence::AddNamespaces(NamespaceIterator& begin, const Namesp
 
     leveldb::WriteBatch batch_prefix, batch_url;
 
-    std::string buffer;
     for (auto& it = begin; begin != end; ++it) {
-        it->SerializeToString(&buffer);
-        batch_prefix.Put(it->prefix(), buffer);
-        batch_url.Put(it->uri(), buffer);
+        AddNamespace(*it, batch_prefix, batch_url);
         count++;
     }
     db_ns_prefix->Write(leveldb::WriteOptions(), &batch_prefix);
@@ -235,7 +233,6 @@ void LevelDBPersistence::GetNamespaces(
         }
     } else {
         // Pattern was empty, iterate over all namespaces and report them.
-        // TODO: fix endless loop
         std::unique_ptr<leveldb::Iterator> it(db_ns_prefix->NewIterator(leveldb::ReadOptions()));
         for (it->SeekToFirst(); it->Valid(); it->Next()) {
             ns.ParseFromArray(it->value().data(), it->value().size());
@@ -249,35 +246,8 @@ int64_t LevelDBPersistence::AddStatements(StatementIterator& begin, const Statem
     int64_t count = 0;
 
     leveldb::WriteBatch batch_spoc, batch_cspo, batch_opsc, batch_cops;
-    std::string buffer, bufs, bufp, bufo, bufc;
     for (auto& it = begin; begin != end; ++it) {
-        it->SerializeToString(&buffer);
-
-        it->subject().SerializeToString(&bufs);
-        it->predicate().SerializeToString(&bufp);
-        it->object().SerializeToString(&bufo);
-        it->context().SerializeToString(&bufc);
-
-        char* k_spoc = (char*)calloc(32, sizeof(char));
-        computeKey(&bufs, &bufp, &bufo, &bufc, k_spoc);
-        batch_spoc.Put(leveldb::Slice(k_spoc, 32), buffer);
-        free(k_spoc);
-
-        char* k_cspo = (char*)calloc(32, sizeof(char));
-        computeKey(&bufc, &bufs, &bufp, &bufo, k_cspo);
-        batch_cspo.Put(leveldb::Slice(k_cspo, 32), buffer);
-        free(k_cspo);
-
-        char* k_opsc = (char*)calloc(32, sizeof(char));
-        computeKey(&bufo, &bufp, &bufs, &bufc, k_opsc);
-        batch_opsc.Put(leveldb::Slice(k_opsc, 32), buffer);
-        free(k_opsc);
-
-        char* k_cops = (char*)calloc(32, sizeof(char));
-        computeKey(&bufc, &bufo, &bufp, &bufs, k_cops);
-        batch_cops.Put(leveldb::Slice(k_cops, 32), buffer);
-        free(k_cops);
-
+        AddStatement(*it, batch_spoc, batch_cspo, batch_opsc, batch_cops);
         count++;
     }
     db_cops->Write(leveldb::WriteOptions(), &batch_cops);
@@ -332,80 +302,144 @@ void LevelDBPersistence::GetStatements(
 
 
 int64_t LevelDBPersistence::RemoveStatements(const rdf::proto::Statement& pattern) {
-    PatternQuery query(pattern);
-
-    leveldb::DB* db;
-    char *loKey = query.MinKey();
-    char *hiKey = query.MaxKey();
-
-    switch (query.Type()) {
-        case PatternQuery::SPOC:
-            db = db_spoc.get();
-            break;
-        case PatternQuery::CSPO:
-            db = db_cspo.get();
-            break;
-        case PatternQuery::OPSC:
-            db = db_opsc.get();
-            break;
-        case PatternQuery::COPS:
-            db = db_cops.get();
-            break;
-    };
-
     int64_t count = 0;
 
     Statement stmt;
     leveldb::WriteBatch batch_spoc, batch_cspo, batch_opsc, batch_cops;
-    std::string bufs, bufp, bufo, bufc;
 
-    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
-    for (it->Seek(leveldb::Slice(loKey, 32));
-         it->Valid() && it->key().compare(leveldb::Slice(hiKey, 32)) < 0;
-         it->Next()) {
-        stmt.ParseFromString(it->value().ToString());
-        if (matches(stmt, pattern)) {
-            stmt.subject().SerializeToString(&bufs);
-            stmt.predicate().SerializeToString(&bufp);
-            stmt.object().SerializeToString(&bufo);
-            stmt.context().SerializeToString(&bufc);
+    count = RemoveStatements(pattern, batch_spoc, batch_cspo, batch_opsc, batch_cops);
 
-            char* k_spoc = (char*)calloc(32, sizeof(char));
-            computeKey(&bufs, &bufp, &bufo, &bufc, k_spoc);
-            batch_spoc.Delete(leveldb::Slice(k_spoc, 32));
-            free(k_spoc);
-
-            char* k_cspo = (char*)calloc(32, sizeof(char));
-            computeKey(&bufc, &bufs, &bufp, &bufo, k_cspo);
-            batch_cspo.Delete(leveldb::Slice(k_cspo, 32));
-            free(k_cspo);
-
-            char* k_opsc = (char*)calloc(32, sizeof(char));
-            computeKey(&bufo, &bufp, &bufs, &bufc, k_opsc);
-            batch_opsc.Delete(leveldb::Slice(k_opsc, 32));
-            free(k_opsc);
-
-            char* k_cops = (char*)calloc(32, sizeof(char));
-            computeKey(&bufc, &bufo, &bufp, &bufs, k_cops);
-            batch_cops.Delete(leveldb::Slice(k_cops, 32));
-            free(k_cops);
-
-            count++;
-        }
-    }
     db_cops->Write(leveldb::WriteOptions(), &batch_cops);
     db_opsc->Write(leveldb::WriteOptions(), &batch_opsc);
     db_cspo->Write(leveldb::WriteOptions(), &batch_cspo);
     db_spoc->Write(leveldb::WriteOptions(), &batch_spoc);
 
-    delete it;
-    free(loKey);
-    free(hiKey);
-
     return count;
 }
 
 
+
+UpdateStatistics LevelDBPersistence::Update(LevelDBPersistence::UpdateIterator &begin,
+                                            const LevelDBPersistence::UpdateIterator &end) {
+    UpdateStatistics stats;
+
+    WriteBatch b_spoc, b_cspo, b_opsc, b_cops, b_prefix, b_url;
+    for (auto& it = begin; begin != end; ++it) {
+        if (it->has_stmt_added()) {
+            AddStatement(it->stmt_added(), b_spoc, b_cspo, b_opsc, b_cops);
+            stats.added_stmts++;
+        } else if (it->has_stmt_removed()) {
+            stats.removed_stmts +=
+                    RemoveStatements(it->stmt_removed(), b_spoc, b_cspo, b_opsc, b_cops);
+        } else if(it->has_ns_added()) {
+            AddNamespace(it->ns_added(), b_prefix, b_url);
+            stats.added_ns++;
+        } else if(it->has_ns_removed()) {
+            RemoveNamespace(it->ns_removed(), b_prefix, b_url);
+        }
+    }
+    db_cops->Write(leveldb::WriteOptions(), &b_cops);
+    db_opsc->Write(leveldb::WriteOptions(), &b_opsc);
+    db_cspo->Write(leveldb::WriteOptions(), &b_cspo);
+    db_spoc->Write(leveldb::WriteOptions(), &b_spoc);
+    db_ns_prefix->Write(leveldb::WriteOptions(), &b_prefix);
+    db_ns_url->Write(leveldb::WriteOptions(), &b_url);
+
+    return stats;
+}
+
+void LevelDBPersistence::AddNamespace(
+        const Namespace &ns, WriteBatch &ns_prefix, WriteBatch &ns_url) {
+    std::string buffer;
+    ns.SerializeToString(&buffer);
+    ns_prefix.Put(ns.prefix(), buffer);
+    ns_url.Put(ns.uri(), buffer);
+}
+
+void LevelDBPersistence::RemoveNamespace(
+        const Namespace &pattern, WriteBatch &ns_prefix, WriteBatch &ns_url) {
+
+    GetNamespaces(pattern, [&ns_prefix, &ns_url](const rdf::proto::Namespace& ns){
+        ns_prefix.Delete(ns.prefix());
+        ns_url.Delete(ns.uri());
+    });
+}
+
+
+void LevelDBPersistence::AddStatement(
+        const Statement &stmt,
+        WriteBatch &spoc, WriteBatch &cspo, WriteBatch &opsc, WriteBatch &cops) {
+
+    std::string buffer, bufs, bufp, bufo, bufc;
+
+    stmt.SerializeToString(&buffer);
+
+    stmt.subject().SerializeToString(&bufs);
+    stmt.predicate().SerializeToString(&bufp);
+    stmt.object().SerializeToString(&bufo);
+    stmt.context().SerializeToString(&bufc);
+
+    char *k_spoc = (char *) calloc(32, sizeof(char));
+    computeKey(&bufs, &bufp, &bufo, &bufc, k_spoc);
+    spoc.Put(leveldb::Slice(k_spoc, 32), buffer);
+    free(k_spoc);
+
+    char *k_cspo = (char *) calloc(32, sizeof(char));
+    computeKey(&bufc, &bufs, &bufp, &bufo, k_cspo);
+    cspo.Put(leveldb::Slice(k_cspo, 32), buffer);
+    free(k_cspo);
+
+    char *k_opsc = (char *) calloc(32, sizeof(char));
+    computeKey(&bufo, &bufp, &bufs, &bufc, k_opsc);
+    opsc.Put(leveldb::Slice(k_opsc, 32), buffer);
+    free(k_opsc);
+
+    char *k_cops = (char *) calloc(32, sizeof(char));
+    computeKey(&bufc, &bufo, &bufp, &bufs, k_cops);
+    cops.Put(leveldb::Slice(k_cops, 32), buffer);
+    free(k_cops);
+}
+
+
+int64_t LevelDBPersistence::RemoveStatements(
+        const Statement& pattern,
+        WriteBatch& spoc, WriteBatch& cspo, WriteBatch& opsc, WriteBatch& cops) {
+
+    int64_t count = 0;
+
+    Statement stmt;
+    std::string bufs, bufp, bufo, bufc;
+    GetStatements(pattern, [&](const Statement stmt) {
+        stmt.subject().SerializeToString(&bufs);
+        stmt.predicate().SerializeToString(&bufp);
+        stmt.object().SerializeToString(&bufo);
+        stmt.context().SerializeToString(&bufc);
+
+        char* k_spoc = (char*)calloc(32, sizeof(char));
+        computeKey(&bufs, &bufp, &bufo, &bufc, k_spoc);
+        spoc.Delete(leveldb::Slice(k_spoc, 32));
+        free(k_spoc);
+
+        char* k_cspo = (char*)calloc(32, sizeof(char));
+        computeKey(&bufc, &bufs, &bufp, &bufo, k_cspo);
+        cspo.Delete(leveldb::Slice(k_cspo, 32));
+        free(k_cspo);
+
+        char* k_opsc = (char*)calloc(32, sizeof(char));
+        computeKey(&bufo, &bufp, &bufs, &bufc, k_opsc);
+        opsc.Delete(leveldb::Slice(k_opsc, 32));
+        free(k_opsc);
+
+        char* k_cops = (char*)calloc(32, sizeof(char));
+        computeKey(&bufc, &bufo, &bufp, &bufs, k_cops);
+        cops.Delete(leveldb::Slice(k_cops, 32));
+        free(k_cops);
+
+        count++;
+    });
+
+    return count;
+}
 
 int KeyComparator::Compare(const leveldb::Slice& a, const leveldb::Slice& b) const {
     for (int i=0; i<32; i++) {
@@ -419,6 +453,7 @@ int KeyComparator::Compare(const leveldb::Slice& a, const leveldb::Slice& b) con
     }
     return 0;
 }
+
 
 }  // namespace persistence
 }  // namespace marmotta

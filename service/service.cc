@@ -71,7 +71,7 @@ class ReaderIterator : public persistence::Iterator<Proto> {
 
 typedef ReaderIterator<rdf::proto::Statement> StatementIterator;
 typedef ReaderIterator<rdf::proto::Namespace> NamespaceIterator;
-
+typedef ReaderIterator<service::proto::UpdateRequest> UpdateIterator;
 
 
 Status LevelDBService::AddNamespaces(
@@ -203,6 +203,22 @@ grpc::Status LevelDBService::GetContexts(
     for (auto c : contexts) {
         result->Write(c);
     }
+    return Status::OK;
+}
+
+grpc::Status LevelDBService::Update(grpc::ServerContext *context,
+                                    grpc::ServerReader<service::proto::UpdateRequest> *reader,
+                                    service::proto::UpdateResponse *result) {
+
+    auto begin = UpdateIterator(reader);
+    auto end   = UpdateIterator::end();
+    persistence::UpdateStatistics stats = persistence.Update(begin, end);
+
+    result->set_added_namespaces(stats.added_ns);
+    result->set_removed_namespaces(stats.removed_ns);
+    result->set_added_statements(stats.added_stmts);
+    result->set_removed_statements(stats.removed_stmts);
+
     return Status::OK;
 }
 }  // namespace service
