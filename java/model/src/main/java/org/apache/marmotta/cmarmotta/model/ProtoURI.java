@@ -77,16 +77,15 @@ public class ProtoURI implements URI {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
 
-        ProtoURI protoURI = (ProtoURI) o;
-
-        return message.equals(protoURI.message);
-
+        if(o instanceof URI) {
+            return this.stringValue().equals(((URI)o).stringValue());
+        }
+        return false;
     }
 
     @Override
     public int hashCode() {
-        return message.hashCode();
+        return stringValue().hashCode();
     }
 }

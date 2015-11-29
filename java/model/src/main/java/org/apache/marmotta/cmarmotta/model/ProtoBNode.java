@@ -33,7 +33,7 @@ public class ProtoBNode implements BNode {
      */
     @Override
     public String getID() {
-        return null;
+        return message.getId();
     }
 
     /**
@@ -42,22 +42,21 @@ public class ProtoBNode implements BNode {
      */
     @Override
     public String stringValue() {
-        return null;
+        return message.getId();
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
 
-        ProtoBNode that = (ProtoBNode) o;
-
-        return message.equals(that.message);
-
+        if(o instanceof BNode) {
+            return this.stringValue().equals(((BNode)o).stringValue());
+        }
+        return false;
     }
 
     @Override
     public int hashCode() {
-        return message.hashCode();
+        return stringValue().hashCode();
     }
 }
