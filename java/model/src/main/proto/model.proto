@@ -2,7 +2,8 @@ syntax = "proto3";
 
 package marmotta.rdf.proto;
 
-option java_package = "org.apache.marmotta.cmarmotta.model";
+option java_package = "org.apache.marmotta.cmarmotta.model.proto";
+
 
 message Namespace {
     string prefix = 1;

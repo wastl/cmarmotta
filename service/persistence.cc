@@ -4,6 +4,7 @@
 #define KEY_LENGTH 16
 
 #include <glog/logging.h>
+#include <leveldb/filter_policy.h>
 
 #include "persistence.h"
 #include "leveldb/write_batch.h"
@@ -194,8 +195,15 @@ leveldb::DB* buildDB(const std::string& path, const std::string& suffix, const l
 leveldb::Options* buildOptions(KeyComparator* cmp, leveldb::Cache* cache) {
     leveldb::Options *options = new leveldb::Options();
     options->create_if_missing = true;
+
+    // Custom comparator for our keys.
     options->comparator = cmp;
+
+    // Cache reads in memory.
     options->block_cache = cache;
+
+    // Set a bloom filter of 10 bits.
+    options->filter_policy = leveldb::NewBloomFilterPolicy(10);
     return options;
 }
 
