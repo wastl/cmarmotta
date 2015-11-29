@@ -13,6 +13,7 @@ find_package (GFlags REQUIRED)
 find_package (Protobuf REQUIRED)
 find_package (GRPC REQUIRED)
 find_package (LevelDB REQUIRED)
+find_package (GLog REQUIRED)
 
 add_subdirectory(util)
 add_subdirectory(model)

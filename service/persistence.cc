@@ -1,10 +1,17 @@
 //
 // Created by wastl on 15.11.15.
 //
+#define KEY_LENGTH 16
+
+#include <glog/logging.h>
 
 #include "persistence.h"
 #include "leveldb/write_batch.h"
 #include "model/rdf_operators.h"
+
+#if KEY_LENGTH == 16
+#include "util/murmur3.h"
+#endif
 
 using leveldb::WriteBatch;
 using marmotta::rdf::proto::Statement;
@@ -14,24 +21,35 @@ using marmotta::rdf::proto::Resource;
 namespace marmotta {
 namespace persistence {
 
+#if KEY_LENGTH == 8
 static std::hash<std::string> g_hash_fn;
 
 /**
 * Encode a 64bit integer in the first 8 bytes of the buffer.
 */
 void encodeInt(char* buffer, size_t data) {
-    buffer[0] = (char)((data >> 56) & 0xFF);
-    buffer[1] = (char)((data >> 48) & 0xFF);
-    buffer[2] = (char)((data >> 40) & 0xFF);
-    buffer[3] = (char)((data >> 32) & 0xFF);
-    buffer[4] = (char)((data >> 24) & 0xFF);
-    buffer[5] = (char)((data >> 16) & 0xFF);
-    buffer[6] = (char)((data >> 8) & 0xFF);
-    buffer[7] = (char)(data & 0xFF);
+    for (int i=0; i<KEY_LENGTH; i++) {
+        buffer[i] = (char)((data >> ((KEY_LENGTH-i-1)*8)) & 0xFF);
+    }
 }
+#endif
 
 // Creates an index key based on hashing values of the 4 messages in proper order.
 void computeKey(const std::string* a, const std::string* b, const std::string* c, const std::string* d, char* result) {
+#if KEY_LENGTH == 16
+    // 128bit keys, use murmur
+    int offset = 0;
+    for (auto m : {a, b, c, d}) {
+        if (m != nullptr) {
+            MurmurHash3_x64_128(m->data(), m->size(), 13, &result[offset]);
+        } else {
+            return;
+        }
+        offset += KEY_LENGTH;
+    }
+
+#else
+    // 64bit keys
     int offset = 0;
     for (auto m : {a, b, c, d}) {
         if (m != nullptr) {
@@ -40,9 +58,9 @@ void computeKey(const std::string* a, const std::string* b, const std::string* c
         } else {
             return;
         }
-        offset += 8;
+        offset += KEY_LENGTH;
     }
-    return;
+#endif
 }
 
 /**
@@ -88,7 +106,7 @@ class PatternQuery {
      * Return the lower key for querying the index (range [MinKey,MaxKey) ).
      */
     char* MinKey() const {
-        char* result = (char*)calloc(32, sizeof(char));
+        char* result = (char*)calloc(4 * KEY_LENGTH, sizeof(char));
         compute(result);
         return result;
     }
@@ -97,8 +115,8 @@ class PatternQuery {
      * Return the upper key for querying the index (range [MinKey,MaxKey) ).
      */
     char* MaxKey() const {
-        char* result = (char*)malloc(32 * sizeof(char));
-        for (int i=0; i<32; i++) {
+        char* result = (char*)malloc(4 * KEY_LENGTH * sizeof(char));
+        for (int i=0; i < 4 * KEY_LENGTH; i++) {
             result[i] = (char)0xFF;
         }
 
@@ -196,6 +214,7 @@ LevelDBPersistence::LevelDBPersistence(const std::string &path, int64_t cacheSiz
 
 
 int64_t LevelDBPersistence::AddNamespaces(NamespaceIterator& begin, const NamespaceIterator& end) {
+    LOG(INFO) << "Starting batch namespace import operation.";
     int64_t count = 0;
 
     leveldb::WriteBatch batch_prefix, batch_url;
@@ -207,11 +226,14 @@ int64_t LevelDBPersistence::AddNamespaces(NamespaceIterator& begin, const Namesp
     db_ns_prefix->Write(leveldb::WriteOptions(), &batch_prefix);
     db_ns_url->Write(leveldb::WriteOptions(), &batch_url);
 
+    LOG(INFO) << "Imported " << count << " namespaces";
+
     return count;
 }
 
 void LevelDBPersistence::GetNamespaces(
         const Namespace &pattern, LevelDBPersistence::NamespaceHandler callback) {
+    LOG(INFO) << "Get namespaces matching pattern " << pattern.DebugString();
 
     Namespace ns;
 
@@ -239,10 +261,12 @@ void LevelDBPersistence::GetNamespaces(
             callback(ns);
         }
     }
+    LOG(INFO) << "Get namespaces done.";
 }
 
 
 int64_t LevelDBPersistence::AddStatements(StatementIterator& begin, const StatementIterator& end) {
+    LOG(INFO) << "Starting batch statement import operation.";
     int64_t count = 0;
 
     leveldb::WriteBatch batch_spoc, batch_cspo, batch_opsc, batch_cops;
@@ -255,6 +279,8 @@ int64_t LevelDBPersistence::AddStatements(StatementIterator& begin, const Statem
     db_cspo->Write(leveldb::WriteOptions(), &batch_cspo);
     db_spoc->Write(leveldb::WriteOptions(), &batch_spoc);
 
+    LOG(INFO) << "Imported " << count << " statements";
+
     return count;
 }
 
@@ -262,6 +288,7 @@ int64_t LevelDBPersistence::AddStatements(StatementIterator& begin, const Statem
 
 void LevelDBPersistence::GetStatements(
         const Statement& pattern, std::function<void(const Statement&)> callback) {
+    LOG(INFO) << "Get statements matching pattern " << pattern.DebugString();
 
     PatternQuery query(pattern);
 
@@ -286,8 +313,8 @@ void LevelDBPersistence::GetStatements(
 
     Statement stmt;
     leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
-    for (it->Seek(leveldb::Slice(loKey, 32));
-         it->Valid() && it->key().compare(leveldb::Slice(hiKey, 32)) < 0;
+    for (it->Seek(leveldb::Slice(loKey, 4 * KEY_LENGTH));
+         it->Valid() && it->key().compare(leveldb::Slice(hiKey, 4 * KEY_LENGTH)) < 0;
          it->Next()) {
         stmt.ParseFromString(it->value().ToString());
         if (matches(stmt, pattern)) {
@@ -298,10 +325,14 @@ void LevelDBPersistence::GetStatements(
     delete it;
     free(loKey);
     free(hiKey);
+
+    LOG(INFO) << "Get statements done.";
 }
 
 
 int64_t LevelDBPersistence::RemoveStatements(const rdf::proto::Statement& pattern) {
+    LOG(INFO) << "Remove statements matching pattern " << pattern.DebugString();
+
     int64_t count = 0;
 
     Statement stmt;
@@ -314,6 +345,8 @@ int64_t LevelDBPersistence::RemoveStatements(const rdf::proto::Statement& patter
     db_cspo->Write(leveldb::WriteOptions(), &batch_cspo);
     db_spoc->Write(leveldb::WriteOptions(), &batch_spoc);
 
+    LOG(INFO) << "Removed " << count << " statements";
+
     return count;
 }
 
@@ -321,6 +354,7 @@ int64_t LevelDBPersistence::RemoveStatements(const rdf::proto::Statement& patter
 
 UpdateStatistics LevelDBPersistence::Update(LevelDBPersistence::UpdateIterator &begin,
                                             const LevelDBPersistence::UpdateIterator &end) {
+    LOG(INFO) << "Starting batch update operation.";
     UpdateStatistics stats;
 
     WriteBatch b_spoc, b_cspo, b_opsc, b_cops, b_prefix, b_url;
@@ -344,6 +378,11 @@ UpdateStatistics LevelDBPersistence::Update(LevelDBPersistence::UpdateIterator &
     db_spoc->Write(leveldb::WriteOptions(), &b_spoc);
     db_ns_prefix->Write(leveldb::WriteOptions(), &b_prefix);
     db_ns_url->Write(leveldb::WriteOptions(), &b_url);
+
+    LOG(INFO) << "Batch update complete. (statements added: " << stats.added_stmts
+            << ", statements removed: " << stats.removed_stmts
+            << ", namespaces added: " << stats.added_ns
+            << ", namespaces removed: " << stats.removed_ns << ")";
 
     return stats;
 }
@@ -379,24 +418,24 @@ void LevelDBPersistence::AddStatement(
     stmt.object().SerializeToString(&bufo);
     stmt.context().SerializeToString(&bufc);
 
-    char *k_spoc = (char *) calloc(32, sizeof(char));
+    char *k_spoc = (char *) calloc(4 * KEY_LENGTH, sizeof(char));
     computeKey(&bufs, &bufp, &bufo, &bufc, k_spoc);
-    spoc.Put(leveldb::Slice(k_spoc, 32), buffer);
+    spoc.Put(leveldb::Slice(k_spoc, 4 * KEY_LENGTH), buffer);
     free(k_spoc);
 
-    char *k_cspo = (char *) calloc(32, sizeof(char));
+    char *k_cspo = (char *) calloc(4 * KEY_LENGTH, sizeof(char));
     computeKey(&bufc, &bufs, &bufp, &bufo, k_cspo);
-    cspo.Put(leveldb::Slice(k_cspo, 32), buffer);
+    cspo.Put(leveldb::Slice(k_cspo, 4 * KEY_LENGTH), buffer);
     free(k_cspo);
 
-    char *k_opsc = (char *) calloc(32, sizeof(char));
+    char *k_opsc = (char *) calloc(4 * KEY_LENGTH, sizeof(char));
     computeKey(&bufo, &bufp, &bufs, &bufc, k_opsc);
-    opsc.Put(leveldb::Slice(k_opsc, 32), buffer);
+    opsc.Put(leveldb::Slice(k_opsc, 4 * KEY_LENGTH), buffer);
     free(k_opsc);
 
-    char *k_cops = (char *) calloc(32, sizeof(char));
+    char *k_cops = (char *) calloc(4 * KEY_LENGTH, sizeof(char));
     computeKey(&bufc, &bufo, &bufp, &bufs, k_cops);
-    cops.Put(leveldb::Slice(k_cops, 32), buffer);
+    cops.Put(leveldb::Slice(k_cops, 4 * KEY_LENGTH), buffer);
     free(k_cops);
 }
 
@@ -415,24 +454,24 @@ int64_t LevelDBPersistence::RemoveStatements(
         stmt.object().SerializeToString(&bufo);
         stmt.context().SerializeToString(&bufc);
 
-        char* k_spoc = (char*)calloc(32, sizeof(char));
+        char* k_spoc = (char*)calloc(4 * KEY_LENGTH, sizeof(char));
         computeKey(&bufs, &bufp, &bufo, &bufc, k_spoc);
-        spoc.Delete(leveldb::Slice(k_spoc, 32));
+        spoc.Delete(leveldb::Slice(k_spoc, 4 * KEY_LENGTH));
         free(k_spoc);
 
-        char* k_cspo = (char*)calloc(32, sizeof(char));
+        char* k_cspo = (char*)calloc(4 * KEY_LENGTH, sizeof(char));
         computeKey(&bufc, &bufs, &bufp, &bufo, k_cspo);
-        cspo.Delete(leveldb::Slice(k_cspo, 32));
+        cspo.Delete(leveldb::Slice(k_cspo, 4 * KEY_LENGTH));
         free(k_cspo);
 
-        char* k_opsc = (char*)calloc(32, sizeof(char));
+        char* k_opsc = (char*)calloc(4 * KEY_LENGTH, sizeof(char));
         computeKey(&bufo, &bufp, &bufs, &bufc, k_opsc);
-        opsc.Delete(leveldb::Slice(k_opsc, 32));
+        opsc.Delete(leveldb::Slice(k_opsc, 4 * KEY_LENGTH));
         free(k_opsc);
 
-        char* k_cops = (char*)calloc(32, sizeof(char));
+        char* k_cops = (char*)calloc(4 * KEY_LENGTH, sizeof(char));
         computeKey(&bufc, &bufo, &bufp, &bufs, k_cops);
-        cops.Delete(leveldb::Slice(k_cops, 32));
+        cops.Delete(leveldb::Slice(k_cops, 4 * KEY_LENGTH));
         free(k_cops);
 
         count++;
@@ -442,7 +481,7 @@ int64_t LevelDBPersistence::RemoveStatements(
 }
 
 int KeyComparator::Compare(const leveldb::Slice& a, const leveldb::Slice& b) const {
-    for (int i=0; i<32; i++) {
+    for (int i=0; i < 4 * KEY_LENGTH; i++) {
         unsigned char ac = (unsigned char)a.data()[i];
         unsigned char bc = (unsigned char)b.data()[i];
         if (ac < bc) {

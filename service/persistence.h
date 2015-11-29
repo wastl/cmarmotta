@@ -108,6 +108,8 @@ class LevelDBPersistence {
     UpdateStatistics Update(UpdateIterator& begin, const UpdateIterator& end);
 
  private:
+    int key_length;
+
     std::unique_ptr<KeyComparator> comparator;
     std::unique_ptr<leveldb::Cache> cache;
     std::unique_ptr<leveldb::Options> options;

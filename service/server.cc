@@ -2,6 +2,7 @@
 // Created by wastl on 15.11.15.
 //
 #include <gflags/gflags.h>
+#include <glog/logging.h>
 
 #include "service/service.h"
 
@@ -16,6 +17,8 @@ DEFINE_string(db, "/tmp/testdb", "Path to database. Will be created if non-exist
 DEFINE_int64(cache_size, 100 * 1048576, "Cache size used by the database (in bytes).");
 
 int main(int argc, char** argv) {
+    // Initialize Google's logging library.
+    google::InitGoogleLogging(argv[0]);
     google::ParseCommandLineFlags(&argc, &argv, true);
 
     marmotta::service::LevelDBService service(FLAGS_db, FLAGS_cache_size);
@@ -26,6 +29,8 @@ int main(int argc, char** argv) {
 
     std::unique_ptr<Server> server(builder.BuildAndStart());
     std::cout << "Persistence Server listening on " << FLAGS_host << ":" << FLAGS_port << std::endl;
+
+    LOG(INFO) << "Persistence Server listening on " << FLAGS_host << ":" << FLAGS_port;
 
     server->Wait();
 
