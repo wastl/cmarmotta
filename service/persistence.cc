@@ -110,6 +110,8 @@ class PatternQuery {
         } else if (pattern.has_predicate()) {
             // Predicate is usually least selective.
             type_ = PCOS;
+        } else if (pattern.has_context()) {
+            type_ = CSPO;
         } else {
             // Fall back to SPOC.
             type_ = SPOC;
