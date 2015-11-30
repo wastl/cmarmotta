@@ -115,7 +115,7 @@ class LevelDBPersistence {
     std::unique_ptr<leveldb::Options> options;
 
     // We currently support efficient lookups by subject, context and object.
-    std::unique_ptr<leveldb::DB> db_spoc, db_cspo, db_opsc, db_cops, db_ns_prefix, db_ns_url;
+    std::unique_ptr<leveldb::DB> db_spoc, db_cspo, db_opsc, db_pcos, db_ns_prefix, db_ns_url;
 
     /**
      * Add the namespace to the given database batch operations.
@@ -134,7 +134,7 @@ class LevelDBPersistence {
      */
     void AddStatement(const rdf::proto::Statement& stmt,
                       leveldb::WriteBatch& spoc, leveldb::WriteBatch& cspo,
-                      leveldb::WriteBatch& opsc, leveldb::WriteBatch& cops);
+                      leveldb::WriteBatch& opsc, leveldb::WriteBatch&pcos);
 
 
     /**
@@ -143,7 +143,7 @@ class LevelDBPersistence {
      */
     int64_t RemoveStatements(const rdf::proto::Statement& pattern,
                              leveldb::WriteBatch& spoc, leveldb::WriteBatch& cspo,
-                             leveldb::WriteBatch& opsc, leveldb::WriteBatch& cops);
+                             leveldb::WriteBatch& opsc, leveldb::WriteBatch&pcos);
 };
 
 

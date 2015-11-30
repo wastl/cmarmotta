@@ -3,11 +3,13 @@
 //
 #define KEY_LENGTH 16
 
+#include <chrono>
+
 #include <glog/logging.h>
 #include <leveldb/filter_policy.h>
+#include <leveldb/write_batch.h>
 
 #include "persistence.h"
-#include "leveldb/write_batch.h"
 #include "model/rdf_operators.h"
 
 #define CHECK_STATUS(s) CHECK(s.ok()) << "Writing to database failed: " << s.ToString()
@@ -73,7 +75,7 @@ void computeKey(const std::string* a, const std::string* b, const std::string* c
 class PatternQuery {
  public:
     enum IndexType {
-        SPOC, CSPO, OPSC, COPS
+        SPOC, CSPO, OPSC, PCOS
     };
 
     PatternQuery(const Statement& pattern) : pattern(pattern) {
@@ -94,15 +96,24 @@ class PatternQuery {
             pattern.context().SerializeToString(c.get());
         }
 
-        if (pattern.has_context()) {
-            if (pattern.has_object()) {
-                type_ = COPS;
+        if (pattern.has_subject()) {
+            // Subject is usually most selective, so if it is present use the
+            // subject-based databases first.
+            if (pattern.has_context()) {
+                type_ = CSPO;
+            } else {
+                type_ = SPOC;
             }
-            type_ = CSPO;
         } else if (pattern.has_object()) {
+            // Second-best option is object.
             type_ = OPSC;
+        } else if (pattern.has_predicate()) {
+            // Predicate is usually least selective.
+            type_ = PCOS;
+        } else {
+            // Fall back to SPOC.
+            type_ = SPOC;
         }
-        type_ = SPOC;
     }
 
     /**
@@ -152,8 +163,8 @@ class PatternQuery {
             case OPSC:
                 computeKey(o.get(), p.get(), s.get(), c.get(), result);
                 break;
-            case COPS:
-                computeKey(c.get(), o.get(), p.get(), s.get(), result);
+            case PCOS:
+                computeKey(p.get(), c.get(), o.get(), s.get(), result);
                 break;
         }
     }
@@ -218,7 +229,7 @@ LevelDBPersistence::LevelDBPersistence(const std::string &path, int64_t cacheSiz
         , cache(leveldb::NewLRUCache(cacheSize))
         , options(buildOptions(comparator.get(), cache.get()))
         , db_spoc(buildDB(path, "spoc", *options)), db_cspo(buildDB(path, "cspo", *options))
-        , db_opsc(buildDB(path, "opsc", *options)), db_cops(buildDB(path, "cops", *options))
+        , db_opsc(buildDB(path, "opsc", *options)), db_pcos(buildDB(path, "pcos", *options))
         , db_ns_prefix(buildDB(path, "ns_prefix", buildNsOptions()))
         , db_ns_url(buildDB(path, "ns_url", buildNsOptions())) { }
 
@@ -279,20 +290,24 @@ void LevelDBPersistence::GetNamespaces(
 
 
 int64_t LevelDBPersistence::AddStatements(StatementIterator& begin, const StatementIterator& end) {
+    auto start = std::chrono::steady_clock::now();
     LOG(INFO) << "Starting batch statement import operation.";
     int64_t count = 0;
 
-    leveldb::WriteBatch batch_spoc, batch_cspo, batch_opsc, batch_cops;
+    leveldb::WriteBatch batch_spoc, batch_cspo, batch_opsc, batch_pcos;
     for (auto& it = begin; begin != end; ++it) {
-        AddStatement(*it, batch_spoc, batch_cspo, batch_opsc, batch_cops);
+        AddStatement(*it, batch_spoc, batch_cspo, batch_opsc, batch_pcos);
         count++;
     }
-    CHECK_STATUS(db_cops->Write(leveldb::WriteOptions(), &batch_cops));
+    CHECK_STATUS(db_pcos->Write(leveldb::WriteOptions(), &batch_pcos));
     CHECK_STATUS(db_opsc->Write(leveldb::WriteOptions(), &batch_opsc));
     CHECK_STATUS(db_cspo->Write(leveldb::WriteOptions(), &batch_cspo));
     CHECK_STATUS(db_spoc->Write(leveldb::WriteOptions(), &batch_spoc));
 
-    LOG(INFO) << "Imported " << count << " statements";
+    LOG(INFO) << "Imported " << count << " statements (time="
+              << std::chrono::duration <double, std::milli> (
+                   std::chrono::steady_clock::now() - start).count()
+              << "ms).";
 
     return count;
 }
@@ -301,6 +316,7 @@ int64_t LevelDBPersistence::AddStatements(StatementIterator& begin, const Statem
 
 void LevelDBPersistence::GetStatements(
         const Statement& pattern, std::function<void(const Statement&)> callback) {
+    auto start = std::chrono::steady_clock::now();
     DLOG(INFO) << "Get statements matching pattern " << pattern.DebugString();
     int64_t count = 0;
 
@@ -313,15 +329,19 @@ void LevelDBPersistence::GetStatements(
     switch (query.Type()) {
         case PatternQuery::SPOC:
             db = db_spoc.get();
+            DLOG(INFO) << "Query: Using index type SPOC";
             break;
         case PatternQuery::CSPO:
             db = db_cspo.get();
+            DLOG(INFO) << "Query: Using index type CSPO";
             break;
         case PatternQuery::OPSC:
             db = db_opsc.get();
+            DLOG(INFO) << "Query: Using index type OPSC";
             break;
-        case PatternQuery::COPS:
-            db = db_cops.get();
+        case PatternQuery::PCOS:
+            db = db_pcos.get();
+            DLOG(INFO) << "Query: Using index type PCOS";
             break;
     };
 
@@ -341,45 +361,51 @@ void LevelDBPersistence::GetStatements(
     free(loKey);
     free(hiKey);
 
-    DLOG(INFO) << "Get statements done (count=" << count << ").";
+    DLOG(INFO) << "Get statements done (count=" << count << ", time="
+               << std::chrono::duration <double, std::milli> (
+                    std::chrono::steady_clock::now() - start).count()
+               << "ms).";
 }
 
 
 int64_t LevelDBPersistence::RemoveStatements(const rdf::proto::Statement& pattern) {
+    auto start = std::chrono::steady_clock::now();
     DLOG(INFO) << "Remove statements matching pattern " << pattern.DebugString();
 
     int64_t count = 0;
 
     Statement stmt;
-    leveldb::WriteBatch batch_spoc, batch_cspo, batch_opsc, batch_cops;
+    leveldb::WriteBatch batch_spoc, batch_cspo, batch_opsc, batch_pcos;
 
-    count = RemoveStatements(pattern, batch_spoc, batch_cspo, batch_opsc, batch_cops);
+    count = RemoveStatements(pattern, batch_spoc, batch_cspo, batch_opsc, batch_pcos);
 
-    CHECK_STATUS(db_cops->Write(leveldb::WriteOptions(), &batch_cops));
+    CHECK_STATUS(db_pcos->Write(leveldb::WriteOptions(), &batch_pcos));
     CHECK_STATUS(db_opsc->Write(leveldb::WriteOptions(), &batch_opsc));
     CHECK_STATUS(db_cspo->Write(leveldb::WriteOptions(), &batch_cspo));
     CHECK_STATUS(db_spoc->Write(leveldb::WriteOptions(), &batch_spoc));
 
-    DLOG(INFO) << "Removed " << count << " statements";
+    DLOG(INFO) << "Removed " << count << " statements (time=" <<
+               std::chrono::duration <double, std::milli> (
+                       std::chrono::steady_clock::now() - start).count()
+               << "ms).";
 
     return count;
 }
 
-
-
 UpdateStatistics LevelDBPersistence::Update(LevelDBPersistence::UpdateIterator &begin,
                                             const LevelDBPersistence::UpdateIterator &end) {
+    auto start = std::chrono::steady_clock::now();
     DLOG(INFO) << "Starting batch update operation.";
     UpdateStatistics stats;
 
-    WriteBatch b_spoc, b_cspo, b_opsc, b_cops, b_prefix, b_url;
+    WriteBatch b_spoc, b_cspo, b_opsc, b_pcos, b_prefix, b_url;
     for (auto& it = begin; begin != end; ++it) {
         if (it->has_stmt_added()) {
-            AddStatement(it->stmt_added(), b_spoc, b_cspo, b_opsc, b_cops);
+            AddStatement(it->stmt_added(), b_spoc, b_cspo, b_opsc, b_pcos);
             stats.added_stmts++;
         } else if (it->has_stmt_removed()) {
             stats.removed_stmts +=
-                    RemoveStatements(it->stmt_removed(), b_spoc, b_cspo, b_opsc, b_cops);
+                    RemoveStatements(it->stmt_removed(), b_spoc, b_cspo, b_opsc, b_pcos);
         } else if(it->has_ns_added()) {
             AddNamespace(it->ns_added(), b_prefix, b_url);
             stats.added_ns++;
@@ -387,7 +413,7 @@ UpdateStatistics LevelDBPersistence::Update(LevelDBPersistence::UpdateIterator &
             RemoveNamespace(it->ns_removed(), b_prefix, b_url);
         }
     }
-    CHECK_STATUS(db_cops->Write(leveldb::WriteOptions(), &b_cops));
+    CHECK_STATUS(db_pcos->Write(leveldb::WriteOptions(), &b_pcos));
     CHECK_STATUS(db_opsc->Write(leveldb::WriteOptions(), &b_opsc));
     CHECK_STATUS(db_cspo->Write(leveldb::WriteOptions(), &b_cspo));
     CHECK_STATUS(db_spoc->Write(leveldb::WriteOptions(), &b_spoc));
@@ -397,7 +423,9 @@ UpdateStatistics LevelDBPersistence::Update(LevelDBPersistence::UpdateIterator &
     DLOG(INFO) << "Batch update complete. (statements added: " << stats.added_stmts
             << ", statements removed: " << stats.removed_stmts
             << ", namespaces added: " << stats.added_ns
-            << ", namespaces removed: " << stats.removed_ns << ")";
+            << ", namespaces removed: " << stats.removed_ns
+            << ", time=" << std::chrono::duration <double, std::milli> (
+                std::chrono::steady_clock::now() - start).count() << "ms).";
 
     return stats;
 }
@@ -425,7 +453,7 @@ void LevelDBPersistence::RemoveNamespace(
 
 void LevelDBPersistence::AddStatement(
         const Statement &stmt,
-        WriteBatch &spoc, WriteBatch &cspo, WriteBatch &opsc, WriteBatch &cops) {
+        WriteBatch &spoc, WriteBatch &cspo, WriteBatch &opsc, WriteBatch &pcos) {
     DLOG(INFO) << "Adding statement " << stmt.DebugString();
 
     std::string buffer, bufs, bufp, bufo, bufc;
@@ -452,16 +480,16 @@ void LevelDBPersistence::AddStatement(
     opsc.Put(leveldb::Slice(k_opsc, 4 * KEY_LENGTH), buffer);
     free(k_opsc);
 
-    char *k_cops = (char *) calloc(4 * KEY_LENGTH, sizeof(char));
-    computeKey(&bufc, &bufo, &bufp, &bufs, k_cops);
-    cops.Put(leveldb::Slice(k_cops, 4 * KEY_LENGTH), buffer);
-    free(k_cops);
+    char *k_pcos = (char *) calloc(4 * KEY_LENGTH, sizeof(char));
+    computeKey(&bufp, &bufc, &bufo, &bufs, k_pcos);
+    pcos.Put(leveldb::Slice(k_pcos, 4 * KEY_LENGTH), buffer);
+    free(k_pcos);
 }
 
 
 int64_t LevelDBPersistence::RemoveStatements(
         const Statement& pattern,
-        WriteBatch& spoc, WriteBatch& cspo, WriteBatch& opsc, WriteBatch& cops) {
+        WriteBatch& spoc, WriteBatch& cspo, WriteBatch& opsc, WriteBatch&pcos) {
     DLOG(INFO) << "Removing statements matching " << pattern.DebugString();
 
     int64_t count = 0;
@@ -488,10 +516,10 @@ int64_t LevelDBPersistence::RemoveStatements(
         opsc.Delete(leveldb::Slice(k_opsc, 4 * KEY_LENGTH));
         free(k_opsc);
 
-        char* k_cops = (char*)calloc(4 * KEY_LENGTH, sizeof(char));
-        computeKey(&bufc, &bufo, &bufp, &bufs, k_cops);
-        cops.Delete(leveldb::Slice(k_cops, 4 * KEY_LENGTH));
-        free(k_cops);
+        char* k_pcos = (char*)calloc(4 * KEY_LENGTH, sizeof(char));
+        computeKey(&bufp, &bufc, &bufo, &bufs, k_pcos);
+        pcos.Delete(leveldb::Slice(k_pcos, 4 * KEY_LENGTH));
+        free(k_pcos);
 
         count++;
     });
