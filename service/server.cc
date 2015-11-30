@@ -1,3 +1,4 @@
+// Binary to start a persistence server implementing the sail.proto API.
 //
 // Created by wastl on 15.11.15.
 //
