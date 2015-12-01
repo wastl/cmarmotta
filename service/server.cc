@@ -4,6 +4,7 @@
 //
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+#include <sys/stat.h>
 
 #include "service/service.h"
 
@@ -22,6 +23,7 @@ int main(int argc, char** argv) {
     google::InitGoogleLogging(argv[0]);
     google::ParseCommandLineFlags(&argc, &argv, true);
 
+    mkdir(FLAGS_db.c_str(), 0700);
     marmotta::service::LevelDBService service(FLAGS_db, FLAGS_cache_size);
 
     ServerBuilder builder;

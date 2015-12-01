@@ -8,6 +8,7 @@
 #include <glog/logging.h>
 #include <leveldb/filter_policy.h>
 #include <leveldb/write_batch.h>
+#include <google/protobuf/wrappers.pb.h>
 
 #include "persistence.h"
 #include "model/rdf_operators.h"
@@ -19,6 +20,7 @@
 #endif
 
 using leveldb::WriteBatch;
+using leveldb::Slice;
 using marmotta::rdf::proto::Statement;
 using marmotta::rdf::proto::Namespace;
 using marmotta::rdf::proto::Resource;
@@ -110,6 +112,8 @@ class PatternQuery {
         } else if (pattern.has_predicate()) {
             // Predicate is usually least selective.
             type_ = PCOS;
+        } else if (pattern.has_context()) {
+            type_ = CSPO;
         } else {
             // Fall back to SPOC.
             type_ = SPOC;
@@ -198,7 +202,7 @@ bool matches(const Statement& stmt, const Statement& pattern) {
  */
 leveldb::DB* buildDB(const std::string& path, const std::string& suffix, const leveldb::Options& options) {
     leveldb::DB* db;
-    leveldb::Status status = leveldb::DB::Open(options, path + "_" + suffix + ".db", &db);
+    leveldb::Status status = leveldb::DB::Open(options, path + "/" + suffix + ".db", &db);
     assert(status.ok());
     return db;
 }
@@ -231,7 +235,8 @@ LevelDBPersistence::LevelDBPersistence(const std::string &path, int64_t cacheSiz
         , db_spoc(buildDB(path, "spoc", *options)), db_cspo(buildDB(path, "cspo", *options))
         , db_opsc(buildDB(path, "opsc", *options)), db_pcos(buildDB(path, "pcos", *options))
         , db_ns_prefix(buildDB(path, "ns_prefix", buildNsOptions()))
-        , db_ns_url(buildDB(path, "ns_url", buildNsOptions())) { }
+        , db_ns_url(buildDB(path, "ns_url", buildNsOptions()))
+        , db_meta(buildDB(path, "metadata", buildNsOptions())) { }
 
 
 int64_t LevelDBPersistence::AddNamespaces(NamespaceIterator& begin, const NamespaceIterator& end) {
@@ -315,7 +320,7 @@ int64_t LevelDBPersistence::AddStatements(StatementIterator& begin, const Statem
 
 
 void LevelDBPersistence::GetStatements(
-        const Statement& pattern, std::function<void(const Statement&)> callback) {
+        const Statement& pattern, std::function<bool(const Statement&)> callback) {
     auto start = std::chrono::steady_clock::now();
     DLOG(INFO) << "Get statements matching pattern " << pattern.DebugString();
     int64_t count = 0;
@@ -347,12 +352,13 @@ void LevelDBPersistence::GetStatements(
 
     Statement stmt;
     leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
+    bool cbsuccess = true;
     for (it->Seek(leveldb::Slice(loKey, 4 * KEY_LENGTH));
-         it->Valid() && it->key().compare(leveldb::Slice(hiKey, 4 * KEY_LENGTH)) <= 0;
+         cbsuccess && it->Valid() && it->key().compare(leveldb::Slice(hiKey, 4 * KEY_LENGTH)) <= 0;
          it->Next()) {
         stmt.ParseFromString(it->value().ToString());
         if (matches(stmt, pattern)) {
-            callback(stmt);
+            cbsuccess = callback(stmt);
             count++;
         }
     }
@@ -444,9 +450,10 @@ void LevelDBPersistence::RemoveNamespace(
         const Namespace &pattern, WriteBatch &ns_prefix, WriteBatch &ns_url) {
     DLOG(INFO) << "Removing namespaces matching pattern " << pattern.DebugString();
 
-    GetNamespaces(pattern, [&ns_prefix, &ns_url](const rdf::proto::Namespace& ns){
+    GetNamespaces(pattern, [&ns_prefix, &ns_url](const rdf::proto::Namespace& ns) -> bool {
         ns_prefix.Delete(ns.prefix());
         ns_url.Delete(ns.uri());
+        return true;
     });
 }
 
@@ -495,7 +502,7 @@ int64_t LevelDBPersistence::RemoveStatements(
     int64_t count = 0;
 
     std::string bufs, bufp, bufo, bufc;
-    GetStatements(pattern, [&](const Statement stmt) {
+    GetStatements(pattern, [&](const Statement stmt) -> bool {
         stmt.subject().SerializeToString(&bufs);
         stmt.predicate().SerializeToString(&bufp);
         stmt.object().SerializeToString(&bufo);
@@ -522,6 +529,8 @@ int64_t LevelDBPersistence::RemoveStatements(
         free(k_pcos);
 
         count++;
+
+        return true;
     });
 
     return count;
@@ -541,6 +550,22 @@ int KeyComparator::Compare(const leveldb::Slice& a, const leveldb::Slice& b) con
 }
 
 
+void LevelDBPersistence::UpdateSize(int64_t newSize) {
+    google::protobuf::Int64Value v;
+    v.set_value(newSize);
+
+    db_meta->Put(leveldb::WriteOptions(), Slice("size", 4), v.SerializeAsString());
+}
+
+int64_t LevelDBPersistence::Size() {
+    std::string result;
+    db_meta->Get(leveldb::ReadOptions(), Slice("size", 4), &result);
+
+    google::protobuf::Int64Value v;
+    v.ParseFromString(result);
+
+    return v.value();
+}
 }  // namespace persistence
 }  // namespace marmotta
 

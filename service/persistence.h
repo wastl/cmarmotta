@@ -59,8 +59,8 @@ class LevelDBPersistence {
     typedef Iterator<rdf::proto::Namespace> NamespaceIterator;
     typedef Iterator<service::proto::UpdateRequest> UpdateIterator;
 
-    typedef std::function<void(const rdf::proto::Statement&)> StatementHandler;
-    typedef std::function<void(const rdf::proto::Namespace&)> NamespaceHandler;
+    typedef std::function<bool(const rdf::proto::Statement&)> StatementHandler;
+    typedef std::function<bool(const rdf::proto::Namespace&)> NamespaceHandler;
 
 
     /**
@@ -107,15 +107,24 @@ class LevelDBPersistence {
      */
     UpdateStatistics Update(UpdateIterator& begin, const UpdateIterator& end);
 
+    /**
+     * Return the size of this database.
+     */
+    int64_t Size();
  private:
-    int key_length;
 
     std::unique_ptr<KeyComparator> comparator;
     std::unique_ptr<leveldb::Cache> cache;
     std::unique_ptr<leveldb::Options> options;
 
     // We currently support efficient lookups by subject, context and object.
-    std::unique_ptr<leveldb::DB> db_spoc, db_cspo, db_opsc, db_pcos, db_ns_prefix, db_ns_url;
+    std::unique_ptr<leveldb::DB>
+            // Statement databases, indexed for query performance
+            db_spoc, db_cspo, db_opsc, db_pcos,
+            // Namespace databases
+            db_ns_prefix, db_ns_url,
+            // Triple store metadata.
+            db_meta;
 
     /**
      * Add the namespace to the given database batch operations.
@@ -144,6 +153,13 @@ class LevelDBPersistence {
     int64_t RemoveStatements(const rdf::proto::Statement& pattern,
                              leveldb::WriteBatch& spoc, leveldb::WriteBatch& cspo,
                              leveldb::WriteBatch& opsc, leveldb::WriteBatch&pcos);
+
+
+    /**
+     * Update the size information stored in the database.
+     */
+    void UpdateSize(int64_t newSize);
+
 };
 
 

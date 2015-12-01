@@ -89,9 +89,10 @@ grpc::Status LevelDBService::GetNamespace(
         ServerContext *context, const rdf::proto::Namespace *pattern, Namespace *result) {
 
     Status status(StatusCode::NOT_FOUND, "Namespace not found");
-    persistence.GetNamespaces(*pattern, [&result, &status](const Namespace &r) {
+    persistence.GetNamespaces(*pattern, [&result, &status](const Namespace &r) -> bool {
         *result = r;
         status = Status::OK;
+        return true;
     });
 
     return status;
@@ -101,8 +102,8 @@ grpc::Status LevelDBService::GetNamespaces(
         ServerContext *context, const Empty *ignored, ServerWriter<Namespace> *result) {
 
     Namespace pattern; // empty pattern
-    persistence.GetNamespaces(pattern, [&result](const Namespace &r) {
-        result->Write(r);
+    persistence.GetNamespaces(pattern, [&result](const Namespace &r) -> bool {
+        return result->Write(r);
     });
 
     return Status::OK;
@@ -124,8 +125,8 @@ Status LevelDBService::AddStatements(
 Status LevelDBService::GetStatements(
         ServerContext* context, const Statement* pattern, ServerWriter<Statement>* result) {
 
-    persistence.GetStatements(*pattern, [&result](const Statement& stmt) {
-        result->Write(stmt);
+    persistence.GetStatements(*pattern, [&result](const Statement& stmt) -> bool {
+        return result->Write(stmt);
     });
 
     return Status::OK;
@@ -170,15 +171,17 @@ Status LevelDBService::Size(
         for (const Resource &r : contexts->context()) {
             pattern.mutable_context()->CopyFrom(r);
 
-            persistence.GetStatements(pattern, [&count](const Statement& stmt) {
+            persistence.GetStatements(pattern, [&count](const Statement& stmt) -> bool {
                 count++;
+                return true;
             });
         }
     } else {
         Statement pattern;
 
-        persistence.GetStatements(pattern, [&count](const Statement& stmt) {
+        persistence.GetStatements(pattern, [&count](const Statement& stmt) -> bool {
             count++;
+            return true;
         });
     }
     result->set_value(count);
@@ -194,10 +197,11 @@ grpc::Status LevelDBService::GetContexts(
     Statement pattern;
     std::unordered_set<Resource> contexts;
 
-    persistence.GetStatements(pattern, [&contexts](const Statement& stmt) {
+    persistence.GetStatements(pattern, [&contexts](const Statement& stmt) -> bool {
         if (stmt.has_context()) {
             contexts.insert(stmt.context());
         }
+        return true;
     });
 
     for (auto c : contexts) {
