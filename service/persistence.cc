@@ -9,6 +9,7 @@
 #include <leveldb/filter_policy.h>
 #include <leveldb/write_batch.h>
 #include <google/protobuf/wrappers.pb.h>
+#include <thread>
 
 #include "persistence.h"
 #include "model/rdf_operators.h"
@@ -304,10 +305,24 @@ int64_t LevelDBPersistence::AddStatements(StatementIterator& begin, const Statem
         AddStatement(*it, batch_spoc, batch_cspo, batch_opsc, batch_pcos);
         count++;
     }
-    CHECK_STATUS(db_pcos->Write(leveldb::WriteOptions(), &batch_pcos));
-    CHECK_STATUS(db_opsc->Write(leveldb::WriteOptions(), &batch_opsc));
-    CHECK_STATUS(db_cspo->Write(leveldb::WriteOptions(), &batch_cspo));
-    CHECK_STATUS(db_spoc->Write(leveldb::WriteOptions(), &batch_spoc));
+
+    std::vector<std::thread> writers;
+    writers.push_back(std::thread([&]() {
+        CHECK_STATUS(db_pcos->Write(leveldb::WriteOptions(), &batch_pcos));
+    }));
+    writers.push_back(std::thread([&]() {
+        CHECK_STATUS(db_opsc->Write(leveldb::WriteOptions(), &batch_opsc));
+    }));
+    writers.push_back(std::thread([&]() {
+        CHECK_STATUS(db_cspo->Write(leveldb::WriteOptions(), &batch_cspo));
+    }));
+    writers.push_back(std::thread([&]() {
+        CHECK_STATUS(db_spoc->Write(leveldb::WriteOptions(), &batch_spoc));
+    }));
+
+    for (auto& t : writers) {
+        t.join();
+    }
 
     LOG(INFO) << "Imported " << count << " statements (time="
               << std::chrono::duration <double, std::milli> (
@@ -385,10 +400,23 @@ int64_t LevelDBPersistence::RemoveStatements(const rdf::proto::Statement& patter
 
     count = RemoveStatements(pattern, batch_spoc, batch_cspo, batch_opsc, batch_pcos);
 
-    CHECK_STATUS(db_pcos->Write(leveldb::WriteOptions(), &batch_pcos));
-    CHECK_STATUS(db_opsc->Write(leveldb::WriteOptions(), &batch_opsc));
-    CHECK_STATUS(db_cspo->Write(leveldb::WriteOptions(), &batch_cspo));
-    CHECK_STATUS(db_spoc->Write(leveldb::WriteOptions(), &batch_spoc));
+    std::vector<std::thread> writers;
+    writers.push_back(std::thread([&]() {
+        CHECK_STATUS(db_pcos->Write(leveldb::WriteOptions(), &batch_pcos));
+    }));
+    writers.push_back(std::thread([&]() {
+        CHECK_STATUS(db_opsc->Write(leveldb::WriteOptions(), &batch_opsc));
+    }));
+    writers.push_back(std::thread([&]() {
+        CHECK_STATUS(db_cspo->Write(leveldb::WriteOptions(), &batch_cspo));
+    }));
+    writers.push_back(std::thread([&]() {
+        CHECK_STATUS(db_spoc->Write(leveldb::WriteOptions(), &batch_spoc));
+    }));
+
+    for (auto& t : writers) {
+        t.join();
+    }
 
     DLOG(INFO) << "Removed " << count << " statements (time=" <<
                std::chrono::duration <double, std::milli> (
@@ -419,12 +447,29 @@ UpdateStatistics LevelDBPersistence::Update(LevelDBPersistence::UpdateIterator &
             RemoveNamespace(it->ns_removed(), b_prefix, b_url);
         }
     }
-    CHECK_STATUS(db_pcos->Write(leveldb::WriteOptions(), &b_pcos));
-    CHECK_STATUS(db_opsc->Write(leveldb::WriteOptions(), &b_opsc));
-    CHECK_STATUS(db_cspo->Write(leveldb::WriteOptions(), &b_cspo));
-    CHECK_STATUS(db_spoc->Write(leveldb::WriteOptions(), &b_spoc));
-    CHECK_STATUS(db_ns_prefix->Write(leveldb::WriteOptions(), &b_prefix));
-    CHECK_STATUS(db_ns_url->Write(leveldb::WriteOptions(), &b_url));
+    std::vector<std::thread> writers;
+    writers.push_back(std::thread([&]() {
+        CHECK_STATUS(db_pcos->Write(leveldb::WriteOptions(), &b_pcos));
+    }));
+    writers.push_back(std::thread([&]() {
+        CHECK_STATUS(db_opsc->Write(leveldb::WriteOptions(), &b_opsc));
+    }));
+    writers.push_back(std::thread([&]() {
+        CHECK_STATUS(db_cspo->Write(leveldb::WriteOptions(), &b_cspo));
+    }));
+    writers.push_back(std::thread([&]() {
+        CHECK_STATUS(db_spoc->Write(leveldb::WriteOptions(), &b_spoc));
+    }));
+    writers.push_back(std::thread([&]() {
+        CHECK_STATUS(db_ns_prefix->Write(leveldb::WriteOptions(), &b_prefix));
+    }));
+    writers.push_back(std::thread([&]() {
+        CHECK_STATUS(db_ns_url->Write(leveldb::WriteOptions(), &b_url));
+    }));
+
+    for (auto& t : writers) {
+        t.join();
+    }
 
     DLOG(INFO) << "Batch update complete. (statements added: " << stats.added_stmts
             << ", statements removed: " << stats.removed_stmts
