@@ -3,6 +3,7 @@
 //
 #include <cstdlib>
 #include <thread>
+#include <unordered_set>
 #include <glog/logging.h>
 
 #include <grpc++/channel.h>
@@ -25,6 +26,7 @@ using grpc::ServerContext;
 using grpc::ServerReader;
 using grpc::ServerWriter;
 using marmotta::rdf::proto::Namespace;
+using marmotta::rdf::proto::Resource;
 using marmotta::rdf::proto::Statement;
 using marmotta::service::proto::ContextRequest;
 using marmotta::service::proto::SailService;
@@ -289,5 +291,31 @@ std::unique_ptr<SailService::Stub> ShardingService::makeStub(int i) {
     return SailService::NewStub(channels[i]);
 }
 
+grpc::Status ShardingService::GetContexts(grpc::ServerContext *context, const google::protobuf::Empty *ignored,
+                                          grpc::ServerWriter<rdf::proto::Resource> *result) {
+    std::unordered_set<Resource> contexts;
+    std::vector<std::thread> threads;
+    std::mutex mutex;
+
+    for (int i=0; i<backends.size(); i++) {
+        threads.push_back(std::thread([i, &mutex, &contexts, this](){
+            ClientContext ctx;
+            auto stub = makeStub(i);
+            auto reader = stub->GetContexts(&ctx, google::protobuf::Empty());
+
+            Resource r;
+            while (reader->Read(&r)) {
+                std::lock_guard<std::mutex> guard(mutex);
+                contexts.insert(r);
+            }
+            reader->Finish();
+        }));
+    }
+
+    for (auto c : contexts) {
+        result->Write(c);
+    }
+    return Status::OK;
+}
 }
 }

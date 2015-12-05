@@ -99,6 +99,13 @@ class ShardingService : public svc::SailService::Service {
                         service::proto::UpdateResponse* result) override;
 
     /**
+     * Retrieve contexts from all backends.
+     */
+    grpc::Status GetContexts(grpc::ServerContext* context,
+                             const google::protobuf::Empty* ignored,
+                             grpc::ServerWriter<rdf::proto::Resource>* result) override;
+
+    /**
      * Clear all statements matching the given context request. Forwards the
      * request to all backends in parallel.
      */
