@@ -32,6 +32,7 @@ using marmotta::service::proto::ContextRequest;
 using marmotta::service::proto::SailService;
 using marmotta::service::proto::UpdateRequest;
 using marmotta::service::proto::UpdateResponse;
+using google::protobuf::Empty;
 using google::protobuf::Int64Value;
 
 namespace marmotta {
@@ -128,8 +129,8 @@ Status ShardingService::GetNamespace(
     return stub->GetNamespace(&ctx, *pattern, result);
 }
 
-Status ShardingService::GetNamespaces(ServerContext *context, const google::protobuf::Empty *ignored,
-                                      ServerWriter<Namespace> *result) {
+Status ShardingService::GetNamespaces(
+        ServerContext *context, const Empty *ignored, ServerWriter<Namespace> *result) {
     int bucket = rand() % backends.size();
 
     auto stub = makeStub(bucket);
@@ -144,9 +145,8 @@ Status ShardingService::GetNamespaces(ServerContext *context, const google::prot
     return reader->Finish();
 }
 
-grpc::Status ShardingService::AddStatements(grpc::ServerContext *context,
-                                            grpc::ServerReader<Statement> *reader,
-                                            Int64Value *result) {
+Status ShardingService::AddStatements(
+        ServerContext *context, ServerReader<Statement> *reader, Int64Value *result) {
     std::vector<ClientContext> contexts(backends.size());
     std::vector<Int64Value> responses(backends.size());
 
@@ -161,7 +161,6 @@ grpc::Status ShardingService::AddStatements(grpc::ServerContext *context,
     std::hash<Statement> stmt_hash;
 
     Statement stmt;
-    std::string buf;
     while (reader->Read(&stmt)) {
             size_t bucket = stmt_hash(stmt) % backends.size();
 
@@ -180,7 +179,7 @@ grpc::Status ShardingService::AddStatements(grpc::ServerContext *context,
     return Status::OK;
 }
 
-grpc::Status ShardingService::GetStatements(
+Status ShardingService::GetStatements(
         ServerContext *context, const Statement *pattern, ServerWriter<Statement> *result) {
     auto start = std::chrono::steady_clock::now();
     DLOG(INFO) << "Get statements matching pattern " << pattern->DebugString();
@@ -291,8 +290,8 @@ std::unique_ptr<SailService::Stub> ShardingService::makeStub(int i) {
     return SailService::NewStub(channels[i]);
 }
 
-grpc::Status ShardingService::GetContexts(grpc::ServerContext *context, const google::protobuf::Empty *ignored,
-                                          grpc::ServerWriter<rdf::proto::Resource> *result) {
+Status ShardingService::GetContexts(
+        ServerContext *context, const Empty *ignored, ServerWriter<Resource> *result) {
     std::unordered_set<Resource> contexts;
     std::vector<std::thread> threads;
     std::mutex mutex;
@@ -301,7 +300,7 @@ grpc::Status ShardingService::GetContexts(grpc::ServerContext *context, const go
         threads.push_back(std::thread([i, &mutex, &contexts, this](){
             ClientContext ctx;
             auto stub = makeStub(i);
-            auto reader = stub->GetContexts(&ctx, google::protobuf::Empty());
+            auto reader = stub->GetContexts(&ctx, Empty());
 
             Resource r;
             while (reader->Read(&r)) {
