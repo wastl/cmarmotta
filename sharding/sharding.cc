@@ -1,6 +1,7 @@
 //
 // Created by wastl on 19.11.15.
 //
+#include <cstdlib>
 #include <thread>
 #include <glog/logging.h>
 
@@ -38,7 +39,8 @@ namespace sharding {
 // Int64Value responses by summing them up.
 template<typename Request,
         Status (SailService::Stub::*ClientMethod)(ClientContext*, const Request&, Int64Value*)>
-Status Fanout(const Request& request, std::vector<std::string> &backends, Int64Value *result) {
+Status Fanout(const Request& request, ShardingService::ChannelList &backends, Int64Value *result) {
+    auto start = std::chrono::steady_clock::now();
     std::vector<std::thread> threads;
     std::vector<Status> statuses(backends.size());
 
@@ -47,8 +49,7 @@ Status Fanout(const Request& request, std::vector<std::string> &backends, Int64V
         threads.push_back(std::thread([i, &backends, &statuses, &request, &r]() {
             ClientContext localctx;
             Int64Value response;
-            auto stub = svc::SailService::NewStub(
-                    grpc::CreateChannel(backends[i], grpc::InsecureChannelCredentials()));
+            auto stub = svc::SailService::NewStub(backends[i]);
             statuses[i] = ((*stub).*ClientMethod)(&localctx, request, &response);
             r += response.value();
         }));
@@ -66,10 +67,20 @@ Status Fanout(const Request& request, std::vector<std::string> &backends, Int64V
             return s;
     }
 
+    DLOG(INFO) << "Fanout operation done (time="
+               << std::chrono::duration <double, std::milli> (
+            std::chrono::steady_clock::now() - start).count()
+               << "ms).";
+
     return Status::OK;
 };
 
-ShardingService::ShardingService(std::vector<std::string> backends) : backends(backends) { }
+ShardingService::ShardingService(std::vector<std::string> backends) : backends(backends) {
+    for (const std::string& server : backends) {
+        LOG(INFO) << "Establishing channel to " << server;
+        channels.push_back(grpc::CreateChannel(server, grpc::InsecureChannelCredentials()));
+    }
+}
 
 grpc::Status ShardingService::AddNamespaces(
         ServerContext *context, ServerReader<Namespace> *reader, Int64Value *result) {
@@ -88,6 +99,7 @@ grpc::Status ShardingService::AddNamespaces(
     // Iterate over all namespaces and schedule a write task.
     Namespace ns;
     while (reader->Read(&ns)) {
+        DLOG(INFO) << "Adding namespace " << ns.DebugString();
         for (auto& w : writers) {
             w->Write(ns);
         }
@@ -101,6 +113,33 @@ grpc::Status ShardingService::AddNamespaces(
     result->set_value(stats[0].value());
 
     return Status::OK;
+}
+
+
+Status ShardingService::GetNamespace(
+        ServerContext *context, const Namespace *pattern, Namespace *result) {
+    int bucket = rand() % backends.size();
+
+    auto stub = makeStub(bucket);
+
+    ClientContext ctx;
+    return stub->GetNamespace(&ctx, *pattern, result);
+}
+
+Status ShardingService::GetNamespaces(ServerContext *context, const google::protobuf::Empty *ignored,
+                                      ServerWriter<Namespace> *result) {
+    int bucket = rand() % backends.size();
+
+    auto stub = makeStub(bucket);
+
+    ClientContext ctx;
+    auto reader = stub->GetNamespaces(&ctx, *ignored);
+
+    Namespace ns;
+    while (reader->Read(&ns)) {
+        result->Write(ns);
+    }
+    return reader->Finish();
 }
 
 grpc::Status ShardingService::AddStatements(grpc::ServerContext *context,
@@ -123,6 +162,8 @@ grpc::Status ShardingService::AddStatements(grpc::ServerContext *context,
     std::string buf;
     while (reader->Read(&stmt)) {
             size_t bucket = stmt_hash(stmt) % backends.size();
+
+            DLOG(INFO) << "Shard " << bucket << ": Adding statement " << stmt.DebugString();
             writers[bucket]->Write(stmt);
     }
     for (auto& w : writers) {
@@ -139,12 +180,15 @@ grpc::Status ShardingService::AddStatements(grpc::ServerContext *context,
 
 grpc::Status ShardingService::GetStatements(
         ServerContext *context, const Statement *pattern, ServerWriter<Statement> *result) {
+    auto start = std::chrono::steady_clock::now();
+    DLOG(INFO) << "Get statements matching pattern " << pattern->DebugString();
+
     std::vector<std::thread> threads;
     std::mutex mutex;
 
     for (int i=0; i<backends.size(); i++) {
         threads.push_back(std::thread([i, this, &mutex, result, pattern]() {
-            DLOG(INFO) << "Getting statements from shard " << i << " started";
+            DLOG(INFO) << "Shard " << i << ": Getting statements.";
             ClientContext localctx;
             auto stub = makeStub(i);
             auto reader = stub->GetStatements(&localctx, *pattern);
@@ -156,7 +200,7 @@ grpc::Status ShardingService::GetStatements(
                 result->Write(stmt);
                 count++;
             }
-            DLOG(INFO) << "Getting statements from shard " << i << " finished (" << count << " results)";
+            DLOG(INFO) << "Shard " << i << ": Getting statements finished (" << count << " results)";
         }));
     }
 
@@ -164,13 +208,19 @@ grpc::Status ShardingService::GetStatements(
         t.join();
     }
 
+    DLOG(INFO) << "Get statements done (time="
+               << std::chrono::duration <double, std::milli> (
+            std::chrono::steady_clock::now() - start).count()
+               << "ms).";
 
     return Status::OK;
 }
 
 Status ShardingService::RemoveStatements(
         ServerContext *context, const Statement *pattern, Int64Value *result) {
-    return Fanout<Statement, &SailService::Stub::RemoveStatements>(*pattern, backends, result);
+    DLOG(INFO) << "Fanout: Remove statements matching pattern " << pattern->DebugString();
+
+    return Fanout<Statement, &SailService::Stub::RemoveStatements>(*pattern, channels, result);
 }
 
 
@@ -195,13 +245,11 @@ Status ShardingService::Update(
     while (reader->Read(&req)) {
         if (req.has_stmt_added()) {
             size_t bucket = stmt_hash(req.stmt_added()) % backends.size();
+
+            DLOG(INFO) << "Shard " << bucket << ": Add statement request " << req.DebugString();
             writers[bucket]->Write(req);
-        }
-        if (req.has_stmt_removed()) {
-            size_t bucket = stmt_hash(req.stmt_removed()) % backends.size();
-            writers[bucket]->Write(req);
-        }
-        if (req.has_ns_added() || req.has_ns_removed()) {
+        } else {
+            DLOG(INFO) << "Fanout update request " << req.DebugString();
             for (auto& w : writers) {
                 w->Write(req);
             }
@@ -225,17 +273,21 @@ Status ShardingService::Update(
 
 Status ShardingService::Clear(
         ServerContext *context, const ContextRequest *contexts, Int64Value *result) {
-    return Fanout<ContextRequest, &SailService::Stub::Clear>(*contexts, backends, result);
+    DLOG(INFO) << "Fanout: Clear contexts matching pattern " << contexts->DebugString();
+
+    return Fanout<ContextRequest, &SailService::Stub::Clear>(*contexts, channels, result);
 }
 
 Status ShardingService::Size(
         ServerContext *context, const ContextRequest *contexts, Int64Value *result) {
-    return Fanout<ContextRequest, &SailService::Stub::Size>(*contexts, backends, result);
+    DLOG(INFO) << "Fanout: Computing size of contexts matching pattern " << contexts->DebugString();
+
+    return Fanout<ContextRequest, &SailService::Stub::Size>(*contexts, channels, result);
 }
 
 std::unique_ptr<SailService::Stub> ShardingService::makeStub(int i) {
-    return SailService::NewStub(
-            grpc::CreateChannel(backends[i], grpc::InsecureChannelCredentials()));
+    return SailService::NewStub(channels[i]);
 }
+
 }
 }

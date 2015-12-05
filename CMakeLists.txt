@@ -17,7 +17,7 @@ find_package (GLog REQUIRED)
 message("Protobuf libraries: ${PROTOBUF_LIBRARIES}")
 
 
-add_definitions(-DNDEBUG)
+#add_definitions(-DNDEBUG)
 
 add_subdirectory(util)
 add_subdirectory(model)

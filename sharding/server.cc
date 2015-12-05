@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include <gflags/gflags.h>
+#include <glog/logging.h>
 
 #include "util/split.h"
 #include "sharding/sharding.h"
@@ -19,6 +20,8 @@ DEFINE_string(backends, "",
               "comma-separated list of host:port pairs of backends to use");
 
 int main(int argc, char** argv) {
+    // Initialize Google's logging library.
+    google::InitGoogleLogging(argv[0]);
     google::ParseCommandLineFlags(&argc, &argv, true);
 
     marmotta::sharding::ShardingService service(

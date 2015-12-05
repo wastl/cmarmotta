@@ -49,6 +49,21 @@ class ShardingService : public svc::SailService::Service {
                                grpc::ServerReader<rdf::proto::Namespace>* reader,
                                google::protobuf::Int64Value* result) override;
 
+
+    /**
+     * Get the namespace matching the pattern using a random server.
+     */
+    grpc::Status GetNamespace(grpc::ServerContext* context,
+                              const rdf::proto::Namespace* pattern,
+                              rdf::proto::Namespace* result) override;
+
+    /**
+     * Get all namespaces matching the pattern using a random server.
+     */
+    grpc::Status GetNamespaces(grpc::ServerContext* context,
+                               const google::protobuf::Empty* ignored,
+                               grpc::ServerWriter<rdf::proto::Namespace>* result) override;
+
     /**
      * Add a sequence of statements. Computes a hash over the serialized
      * proto message modulo the number of backends to determine which backend
@@ -99,9 +114,12 @@ class ShardingService : public svc::SailService::Service {
                       const svc::ContextRequest* contexts,
                       google::protobuf::Int64Value* result) override;
 
- private:
+
     using StubType = std::unique_ptr<svc::SailService::Stub>;
     using StubList = std::vector<StubType>;
+
+    using ChannelType = std::shared_ptr<grpc::Channel>;
+    using ChannelList = std::vector<ChannelType>;
 
     template <class T>
     using Writer = std::unique_ptr<grpc::ClientWriter<T>>;
@@ -109,8 +127,12 @@ class ShardingService : public svc::SailService::Service {
     template <class T>
     using WriterList = std::vector<Writer<T>>;
 
+ private:
     // Vector holding the RPC stubs to the backends.
     std::vector<std::string> backends;
+
+    // Keep a list of channels open, initialised on construction.
+    ChannelList channels;
 
     // Hash function, computed over binary representation of statement message,
     // modulo the number of backends.
