@@ -20,7 +20,6 @@
 #include "service/sail.pb.h"
 #include "service/sail.grpc.pb.h"
 #include "model/model.pb.h"
-#include "util/threadpool.h"
 
 
 namespace marmotta {
@@ -76,6 +75,15 @@ class ShardingService : public svc::SailService::Service {
                                   google::protobuf::Int64Value* result) override;
 
     /**
+     * Process a sequence of updates. For statement updates, computes a hash over the
+     * serialized proto message modulo the number of backends to determine which backend
+     * to write to. For namespace updates, writes to all backends.
+     */
+    grpc::Status Update(grpc::ServerContext* context,
+                        grpc::ServerReader<service::proto::UpdateRequest>* reader,
+                        service::proto::UpdateResponse* result) override;
+
+    /**
      * Clear all statements matching the given context request. Forwards the
      * request to all backends in parallel.
      */
@@ -92,12 +100,24 @@ class ShardingService : public svc::SailService::Service {
                       google::protobuf::Int64Value* result) override;
 
  private:
+    using StubType = std::unique_ptr<svc::SailService::Stub>;
+    using StubList = std::vector<StubType>;
+
+    template <class T>
+    using Writer = std::unique_ptr<grpc::ClientWriter<T>>;
+
+    template <class T>
+    using WriterList = std::vector<Writer<T>>;
+
     // Vector holding the RPC stubs to the backends.
-    std::vector<std::unique_ptr<svc::SailService::Stub>> stubs;
+    std::vector<std::string> backends;
 
     // Hash function, computed over binary representation of statement message,
     // modulo the number of backends.
     std::hash<std::string> hash_fn;
+
+    // Make a stub for the backend with the given index.
+    StubType makeStub(int backend);
 };
 
 

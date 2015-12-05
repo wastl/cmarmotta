@@ -21,10 +21,20 @@ ThreadPool::~ThreadPool() {
 void ThreadPool::Worker() {
     while (running || !taskQueue.empty()) {
         std::unique_lock<std::mutex> lock(taskQueueMutex);
+
+        // Queue empty when entering the loop. Wait until notified.
         if (taskQueue.empty()) {
             taskQueueWait.wait(lock);
         }
 
+        // Queue empty because threadpool was stopped. Skip rest of loop.
+        if (taskQueue.empty()) {
+            lock.unlock();
+            continue;
+
+        }
+
+        // Take next task from queue and execute it.
         auto next = taskQueue.front();
         taskQueue.pop();
         lock.unlock();
@@ -40,12 +50,14 @@ void ThreadPool::Schedule(std::function<void()> task) {
 
 void ThreadPool::Stop() {
     running = false;
+    taskQueueWait.notify_all();
 }
 
 void ThreadPool::Join() {
     Stop();
     for (auto &t : workers) {
-        t.join();
+        if (t.joinable())
+            t.join();
     }
 }
 }

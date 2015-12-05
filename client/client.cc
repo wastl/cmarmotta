@@ -181,7 +181,7 @@ int main(int argc, char** argv) {
     google::ParseCommandLineFlags(&argc, &argv, true);
 
     MarmottaClient client(
-            grpc::CreateChannel(FLAGS_host + ":" + FLAGS_port, grpc::InsecureCredentials()));
+            grpc::CreateChannel(FLAGS_host + ":" + FLAGS_port, grpc::InsecureChannelCredentials()));
 
     if ("import" == std::string(argv[1])) {
         std::ifstream in(argv[2]);

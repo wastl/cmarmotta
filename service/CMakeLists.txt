@@ -5,8 +5,7 @@ PROTOBUF_GENERATE_CPP(PROTO_SRCS PROTO_HDRS ${ProtoFiles})
 PROTOBUF_GENERATE_GRPC_CPP(GRPC_SRCS GRPC_HDRS ${ProtoFiles})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-add_library(marmotta_service SHARED ${PROTO_SRCS} ${PROTO_HDRS} ${GRPC_SRCS} ${GRPC_HDRS})
-set_target_properties(marmotta_service PROPERTIES SOVERSION 1)
+add_library(marmotta_service ${PROTO_SRCS} ${PROTO_HDRS} ${GRPC_SRCS} ${GRPC_HDRS})
 target_link_libraries(marmotta_service marmotta_model ${CMAKE_THREAD_LIBS_INIT} ${PROTOBUF_LIBRARIES} ${GRPC_LIBRARIES})
 
 add_executable(marmotta_persistence persistence.cc persistence.h service.cc service.h server.cc)
