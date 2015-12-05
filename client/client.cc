@@ -82,8 +82,9 @@ typedef ClientReaderIterator<rdf::Namespace, rdf::proto::Namespace> NamespaceRea
 
 class MarmottaClient {
  public:
-    MarmottaClient(std::shared_ptr<Channel> channel)
-            : stub_(svc::SailService::NewStub(channel)) {}
+    MarmottaClient(const std::string& server)
+            : stub_(svc::SailService::NewStub(
+            grpc::CreateChannel(server, grpc::InsecureChannelCredentials()))) {}
 
     void importDataset(std::istream& in, parser::Format format) {
         ClientContext nscontext, stmtcontext;
@@ -178,10 +179,11 @@ DEFINE_string(port, "10000", "Port of server to access.");
 DEFINE_string(output, "", "File to write result to.");
 
 int main(int argc, char** argv) {
+    GOOGLE_PROTOBUF_VERIFY_VERSION;
+
     google::ParseCommandLineFlags(&argc, &argv, true);
 
-    MarmottaClient client(
-            grpc::CreateChannel(FLAGS_host + ":" + FLAGS_port, grpc::InsecureChannelCredentials()));
+    MarmottaClient client(FLAGS_host + ":" + FLAGS_port);
 
     if ("import" == std::string(argv[1])) {
         std::ifstream in(argv[2]);
@@ -222,4 +224,8 @@ int main(int argc, char** argv) {
             client.listNamespaces(std::cout);
         }
     }
+
+    google::protobuf::ShutdownProtobufLibrary();
+
+    return 0;
 }
