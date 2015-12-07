@@ -12,5 +12,5 @@ add_executable(marmotta_persistence persistence.cc persistence.h service.cc serv
 target_link_libraries(marmotta_persistence
         marmotta_model marmotta_service marmotta_util
         ${LevelDB_LIBRARY} ${GFLAGS_LIBRARY} ${GLOG_LIBRARY}
-        ${CMAKE_THREAD_LIBS_INIT} ${PROTOBUF_LIBRARIES} ${GRPC_LIBRARIES})
+        ${CMAKE_THREAD_LIBS_INIT} ${PROTOBUF_LIBRARIES} ${GRPC_LIBRARIES} ${Tcmalloc_LIBRARIES})
 

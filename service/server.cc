@@ -5,6 +5,7 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 #include <sys/stat.h>
+#include <signal.h>
 
 #include "service/service.h"
 
@@ -18,6 +19,15 @@ DEFINE_string(port, "10000", "Port of server to access.");
 DEFINE_string(db, "/tmp/testdb", "Path to database. Will be created if non-existant.");
 DEFINE_int64(cache_size, 100 * 1048576, "Cache size used by the database (in bytes).");
 
+std::unique_ptr<Server> server;
+
+void stopServer(int signal) {
+    if (server.get() != nullptr) {
+        LOG(INFO) << "Persistence Server shutting down";
+        server->Shutdown();
+    }
+}
+
 int main(int argc, char** argv) {
     // Initialize Google's logging library.
     google::InitGoogleLogging(argv[0]);
@@ -30,10 +40,12 @@ int main(int argc, char** argv) {
     builder.AddListeningPort(FLAGS_host + ":" + FLAGS_port, grpc::InsecureServerCredentials());
     builder.RegisterService(&service);
 
-    std::unique_ptr<Server> server(builder.BuildAndStart());
+    server = builder.BuildAndStart();
     std::cout << "Persistence Server listening on " << FLAGS_host << ":" << FLAGS_port << std::endl;
 
     LOG(INFO) << "Persistence Server listening on " << FLAGS_host << ":" << FLAGS_port;
+
+    signal(SIGINT, stopServer);
 
     server->Wait();
 

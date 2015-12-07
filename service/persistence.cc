@@ -71,6 +71,19 @@ void computeKey(const std::string* a, const std::string* b, const std::string* c
 #endif
 }
 
+enum Position {
+    S = 0, P = 1, O = 2, C = 3
+};
+
+// Reorder a hash key from the generated SPOC key without requiring to recompute murmur.
+inline void orderKey(char* dest, const char* src, Position a, Position b, Position c, Position d) {
+    int offset = 0;
+    for (int m : {a, b, c, d}) {
+        memcpy(&dest[offset], &src[m * KEY_LENGTH], KEY_LENGTH * sizeof(char));
+        offset += KEY_LENGTH;
+    }
+}
+
 /**
  * Helper class to define proper cache keys and identify the index to use based on
  * fields available in the pattern.
@@ -520,21 +533,22 @@ void LevelDBPersistence::AddStatement(
     char *k_spoc = (char *) calloc(4 * KEY_LENGTH, sizeof(char));
     computeKey(&bufs, &bufp, &bufo, &bufc, k_spoc);
     spoc.Put(leveldb::Slice(k_spoc, 4 * KEY_LENGTH), buffer);
-    free(k_spoc);
 
     char *k_cspo = (char *) calloc(4 * KEY_LENGTH, sizeof(char));
-    computeKey(&bufc, &bufs, &bufp, &bufo, k_cspo);
+    orderKey(k_cspo, k_spoc, C, S, P, O);
     cspo.Put(leveldb::Slice(k_cspo, 4 * KEY_LENGTH), buffer);
-    free(k_cspo);
 
     char *k_opsc = (char *) calloc(4 * KEY_LENGTH, sizeof(char));
-    computeKey(&bufo, &bufp, &bufs, &bufc, k_opsc);
+    orderKey(k_opsc, k_spoc, O, P, S, C);
     opsc.Put(leveldb::Slice(k_opsc, 4 * KEY_LENGTH), buffer);
-    free(k_opsc);
 
     char *k_pcos = (char *) calloc(4 * KEY_LENGTH, sizeof(char));
-    computeKey(&bufp, &bufc, &bufo, &bufs, k_pcos);
+    orderKey(k_pcos, k_spoc, P, C, O, S);
     pcos.Put(leveldb::Slice(k_pcos, 4 * KEY_LENGTH), buffer);
+
+    free(k_spoc);
+    free(k_cspo);
+    free(k_opsc);
     free(k_pcos);
 }
 
@@ -556,21 +570,22 @@ int64_t LevelDBPersistence::RemoveStatements(
         char* k_spoc = (char*)calloc(4 * KEY_LENGTH, sizeof(char));
         computeKey(&bufs, &bufp, &bufo, &bufc, k_spoc);
         spoc.Delete(leveldb::Slice(k_spoc, 4 * KEY_LENGTH));
-        free(k_spoc);
 
         char* k_cspo = (char*)calloc(4 * KEY_LENGTH, sizeof(char));
-        computeKey(&bufc, &bufs, &bufp, &bufo, k_cspo);
+        orderKey(k_cspo, k_spoc, C, S, P, O);
         cspo.Delete(leveldb::Slice(k_cspo, 4 * KEY_LENGTH));
-        free(k_cspo);
 
         char* k_opsc = (char*)calloc(4 * KEY_LENGTH, sizeof(char));
-        computeKey(&bufo, &bufp, &bufs, &bufc, k_opsc);
+        orderKey(k_opsc, k_spoc, O, P, S, C);
         opsc.Delete(leveldb::Slice(k_opsc, 4 * KEY_LENGTH));
-        free(k_opsc);
 
         char* k_pcos = (char*)calloc(4 * KEY_LENGTH, sizeof(char));
-        computeKey(&bufp, &bufc, &bufo, &bufs, k_pcos);
+        orderKey(k_pcos, k_spoc, P, C, O, S);
         pcos.Delete(leveldb::Slice(k_pcos, 4 * KEY_LENGTH));
+
+        free(k_spoc);
+        free(k_cspo);
+        free(k_opsc);
         free(k_pcos);
 
         count++;
@@ -582,16 +597,7 @@ int64_t LevelDBPersistence::RemoveStatements(
 }
 
 int KeyComparator::Compare(const leveldb::Slice& a, const leveldb::Slice& b) const {
-    for (int i=0; i < 4 * KEY_LENGTH; i++) {
-        unsigned char ac = (unsigned char)a.data()[i];
-        unsigned char bc = (unsigned char)b.data()[i];
-        if (ac < bc) {
-            return -1;
-        } else if (ac > bc) {
-            return 1;
-        }
-    }
-    return 0;
+    return memcmp(a.data(), b.data(), 4 * KEY_LENGTH);
 }
 
 
