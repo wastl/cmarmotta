@@ -51,6 +51,20 @@ Start the backend from the cmake build directory as follows:
     
 The binary accepts many different options. Please see `--help` for details.
 
+## Running Sharding
+
+The repository contains an experimental implementation of a sharding server that proxies and 
+distributes requests based on a hash calculation over statements. In heavy load environments,
+this is potentially much faster than running a single persistence backend. The setup requires
+several persistence backends (shards) and a sharding proxy. To experiment, you can start these
+on the same machine as follows:
+
+    ./service/marmotta_persistence -db /path/to/shard1 -port 10001
+    ./service/marmotta_persistence -db /path/to/shard2 -port 10002
+    ./sharding/marmotta_sharding --port 10000 --backends localhost:10001,localhost:10002
+
+You can then access the sharding server through Marmotta like the persistence server.
+
 ## Running Apache Marmotta 
 
 A preconfigured version of Apache Marmotta is available in `java/webapp`. It connects to 
