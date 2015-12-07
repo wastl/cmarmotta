@@ -177,12 +177,7 @@ Status LevelDBService::Size(
             });
         }
     } else {
-        Statement pattern;
-
-        persistence.GetStatements(pattern, [&count](const Statement& stmt) -> bool {
-            count++;
-            return true;
-        });
+        count = persistence.Size();
     }
     result->set_value(count);
 

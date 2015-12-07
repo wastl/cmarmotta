@@ -155,11 +155,6 @@ class LevelDBPersistence {
                              leveldb::WriteBatch& opsc, leveldb::WriteBatch&pcos);
 
 
-    /**
-     * Update the size information stored in the database.
-     */
-    void UpdateSize(int64_t newSize);
-
 };
 
 

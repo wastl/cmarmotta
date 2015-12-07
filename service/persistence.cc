@@ -595,21 +595,15 @@ int KeyComparator::Compare(const leveldb::Slice& a, const leveldb::Slice& b) con
 }
 
 
-void LevelDBPersistence::UpdateSize(int64_t newSize) {
-    google::protobuf::Int64Value v;
-    v.set_value(newSize);
-
-    db_meta->Put(leveldb::WriteOptions(), Slice("size", 4), v.SerializeAsString());
-}
-
 int64_t LevelDBPersistence::Size() {
-    std::string result;
-    db_meta->Get(leveldb::ReadOptions(), Slice("size", 4), &result);
+    int64_t count = 0;
+    leveldb::Iterator* it = db_cspo->NewIterator(leveldb::ReadOptions());
+    for (it->SeekToFirst(); it->Valid(); it->Next()) {
+        count++;
+    }
 
-    google::protobuf::Int64Value v;
-    v.ParseFromString(result);
-
-    return v.value();
+    delete it;
+    return count;
 }
 }  // namespace persistence
 }  // namespace marmotta
