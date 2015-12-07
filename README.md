@@ -63,7 +63,10 @@ on the same machine as follows:
     ./service/marmotta_persistence -db /path/to/shard2 -port 10002
     ./sharding/marmotta_sharding --port 10000 --backends localhost:10001,localhost:10002
 
-You can then access the sharding server through Marmotta like the persistence server.
+You can then access the sharding server through Marmotta like the persistence server. Running all instances
+on the same host is only useful for testing. In production environments, you would of course run all three
+(or more) instances on different hosts. Note that the number and order of backends should not change once
+data has been imported, because otherwise the hashing algorithm will do the wrong thing.
 
 ## Running Apache Marmotta 
 
