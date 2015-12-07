@@ -4,9 +4,8 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.google.protobuf.Empty;
 import com.google.protobuf.Int64Value;
 import info.aduna.iteration.*;
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
-import io.grpc.Status;
+import io.grpc.*;
+import io.grpc.stub.ClientCalls;
 import io.grpc.stub.StreamObserver;
 import org.apache.marmotta.cmarmotta.client.proto.Sail;
 import org.apache.marmotta.cmarmotta.client.proto.SailServiceGrpc;
@@ -90,6 +89,7 @@ public class CMarmottaSailConnection extends NotifyingSailConnectionBase {
     @Override
     protected void addStatementInternal(Resource subj, URI pred, Value obj, Resource... contexts) throws SailException {
         log.info("Adding statements.");
+        ensureTransaction();
 
         if (contexts.length > 0) {
             for (Resource ctx : contexts) {
@@ -170,7 +170,7 @@ public class CMarmottaSailConnection extends NotifyingSailConnectionBase {
                 iterators.add(new DelayedIteration<Statement, SailException>() {
                     @Override
                     protected Iteration<? extends Statement, ? extends SailException> createIteration() throws SailException {
-                        return wrapStatementIterator(stub.getStatements(pattern.getMessage()));
+                        return wrapStatementIterator(new ClosableResponseStream<>(astub, SailServiceGrpc.METHOD_GET_STATEMENTS, pattern.getMessage()));
                     }
                 });
             }
@@ -178,7 +178,8 @@ public class CMarmottaSailConnection extends NotifyingSailConnectionBase {
         }
 
         ProtoStatement pattern = new ProtoStatement(subj, pred, obj, null);
-        return wrapStatementIterator(stub.getStatements(pattern.getMessage()));
+
+        return wrapStatementIterator(new ClosableResponseStream<>(astub, SailServiceGrpc.METHOD_GET_STATEMENTS, pattern.getMessage()));
     }
 
     @Override
@@ -201,8 +202,13 @@ public class CMarmottaSailConnection extends NotifyingSailConnectionBase {
 
     @Override
     protected void startTransactionInternal() throws SailException {
-        finishFuture = SettableFuture.create();
-        updateRequestObserver = astub.update(updateResponseObserver);
+    }
+
+    protected void ensureTransaction() {
+        if (updateRequestObserver == null) {
+            finishFuture = SettableFuture.create();
+            updateRequestObserver = astub.update(updateResponseObserver);
+        }
     }
 
     protected void commitForQuery() throws SailException {
@@ -237,6 +243,7 @@ public class CMarmottaSailConnection extends NotifyingSailConnectionBase {
     protected void removeStatementsInternal(Resource subj, URI pred, Value obj, Resource... contexts) throws SailException {
         log.info("Removing statements.");
         commitForQuery();
+        ensureTransaction();
 
         if (contexts.length > 0) {
             for (Resource ctx : contexts) {
@@ -255,6 +262,7 @@ public class CMarmottaSailConnection extends NotifyingSailConnectionBase {
     protected void clearInternal(Resource... contexts) throws SailException {
         log.info("Clearing statements.");
         commitForQuery();
+        ensureTransaction();
 
         if (contexts.length > 0) {
             for (Resource ctx : contexts) {
@@ -297,6 +305,7 @@ public class CMarmottaSailConnection extends NotifyingSailConnectionBase {
     @Override
     protected void setNamespaceInternal(String prefix, String name) throws SailException {
         log.info("Setting namespace {} = {}.", prefix, name);
+        ensureTransaction();
 
         ProtoNamespace ns = new ProtoNamespace(prefix, name);
         Sail.UpdateRequest u = Sail.UpdateRequest.newBuilder().setNsAdded(ns.getMessage()).build();
@@ -308,6 +317,7 @@ public class CMarmottaSailConnection extends NotifyingSailConnectionBase {
     protected void removeNamespaceInternal(String prefix) throws SailException {
         log.info("Removing namespace {}.", prefix);
         commitForQuery();
+        ensureTransaction();
 
         Sail.UpdateRequest.Builder builder = Sail.UpdateRequest.newBuilder();
         builder.getNsRemovedBuilder().setPrefix(prefix);
@@ -318,11 +328,22 @@ public class CMarmottaSailConnection extends NotifyingSailConnectionBase {
     protected void clearNamespacesInternal() throws SailException {
         log.info("Clearing namespaces.");
         commitForQuery();
+        ensureTransaction();
 
         Sail.UpdateRequest.Builder builder = Sail.UpdateRequest.newBuilder();
         builder.setNsRemoved(Model.Namespace.getDefaultInstance());
         updateRequestObserver.onNext(builder.build());
     }
+
+    private static CloseableIteration<Statement, SailException> wrapStatementIterator(CloseableIteration<Model.Statement, SailException> it) {
+        return new ConvertingIteration<Model.Statement, Statement, SailException>(it) {
+            @Override
+            protected Statement convert(Model.Statement sourceObject) throws SailException {
+                return new ProtoStatement(sourceObject);
+            }
+        };
+    }
+
 
     private static CloseableIteration<Statement, SailException> wrapStatementIterator(Iterator<Model.Statement> it) {
         return new ConvertingIteration<Model.Statement, Statement, SailException>(

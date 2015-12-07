@@ -196,9 +196,10 @@ Status ShardingService::GetStatements(
 
             int64_t count = 0;
             Statement stmt;
-            while (reader->Read(&stmt)) {
+            bool run = true;
+            while (run && reader->Read(&stmt)) {
                 std::lock_guard<std::mutex> guard(mutex);
-                result->Write(stmt);
+                run = result->Write(stmt);
                 count++;
             }
             DLOG(INFO) << "Shard " << i << ": Getting statements finished (" << count << " results)";
