@@ -115,12 +115,14 @@ rasqal_literal *AsStringLiteral(rasqal_world* world, const rdf::Value &v) {
 }
 
 rasqal_literal *AsDatatypeLiteral(rasqal_world* world, const rdf::Value &v) {
+    raptor_world* raptorWorld = rasqal_world_get_raptor(world);
     rdf::DatatypeLiteral l(v.getMessage().literal().dataliteral());
 
-
-    // TODO
-
-    return nullptr;
+    return rasqal_new_string_literal(
+            world, (const unsigned char*)l.getContent().c_str(), nullptr,
+            raptor_new_uri(
+                    raptorWorld, (const unsigned char*)l.getDatatype().stringValue().c_str()),
+            nullptr);
 }
 
 rasqal_literal *AsLiteral(rasqal_world* world, const rdf::Resource &r) {
