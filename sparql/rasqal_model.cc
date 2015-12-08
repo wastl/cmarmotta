@@ -67,6 +67,12 @@ rdf::Value ConvertValue(rasqal_literal *node) {
                     s, rdf::URI((const char*)raptor_uri_as_string(node->datatype)));
             free(s);
             return r;
+        case RASQAL_LITERAL_DATE:
+            s = rasqal_xsd_date_to_string(node->value.date);
+            r = rdf::DatatypeLiteral(
+                    s, rdf::URI((const char*)raptor_uri_as_string(node->datatype)));
+            free(s);
+            return r;
         default:
             return rdf::Value();
     }
@@ -102,11 +108,32 @@ rdf::Statement ConvertStatement(rasqal_triple *triple) {
 }
 
 rasqal_literal *AsLiteral(rasqal_world* world, const rdf::Resource &r) {
-    return nullptr;
+    raptor_world* raptorWorld = rasqal_world_get_raptor(world);
+    switch (r.type) {
+        case rdf::Resource::URI:
+            return rasqal_new_uri_literal(world, raptor_new_uri(
+                    raptorWorld, (const unsigned char*)r.stringValue().c_str()));
+        case rdf::Resource::BNODE:
+            return rasqal_new_simple_literal(
+                    world, RASQAL_LITERAL_BLANK, (const unsigned char*)r.stringValue().c_str());
+        default:
+            return nullptr;
+    }
 }
 
 rasqal_literal *AsLiteral(rasqal_world* world, const rdf::Value &v) {
-    return nullptr;
+    raptor_world* raptorWorld = rasqal_world_get_raptor(world);
+    switch (v.type) {
+        case rdf::Value::URI:
+            return rasqal_new_uri_literal(world, raptor_new_uri(
+                    raptorWorld, (const unsigned char*)v.stringValue().c_str()));
+        case rdf::Value::BNODE:
+            return rasqal_new_simple_literal(
+                    world, RASQAL_LITERAL_BLANK, (const unsigned char*)v.stringValue().c_str());
+        default:
+            // TODO: literal types
+            return nullptr;
+    }
 }
 
 rasqal_literal *AsLiteral(rasqal_world* world, const rdf::URI &u) {
