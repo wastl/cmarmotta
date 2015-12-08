@@ -60,19 +60,19 @@ rdf::Value ConvertValue(rasqal_literal *node) {
             r = rdf::DatatypeLiteral(
                     s, rdf::URI((const char*)raptor_uri_as_string(node->datatype)));
             free(s);
-            return r;
+            return std::move(r); // r is an lvalue, explicit move
         case RASQAL_LITERAL_DATETIME:
             s = rasqal_xsd_datetime_to_string(node->value.datetime);
             r = rdf::DatatypeLiteral(
                     s, rdf::URI((const char*)raptor_uri_as_string(node->datatype)));
             free(s);
-            return r;
+            return std::move(r); // r is an lvalue, explicit move
         case RASQAL_LITERAL_DATE:
             s = rasqal_xsd_date_to_string(node->value.date);
             r = rdf::DatatypeLiteral(
                     s, rdf::URI((const char*)raptor_uri_as_string(node->datatype)));
             free(s);
-            return r;
+            return std::move(r); // r is an lvalue, explicit move
         default:
             return rdf::Value();
     }
@@ -107,6 +107,22 @@ rdf::Statement ConvertStatement(rasqal_triple *triple) {
     }
 }
 
+rasqal_literal *AsStringLiteral(rasqal_world* world, const rdf::Value &v) {
+    rdf::StringLiteral l(v.getMessage().literal().stringliteral());
+
+    return rasqal_new_string_literal(
+            world, (const unsigned char*)l.getContent().c_str(), l.getLanguage().c_str(), nullptr, nullptr);
+}
+
+rasqal_literal *AsDatatypeLiteral(rasqal_world* world, const rdf::Value &v) {
+    rdf::DatatypeLiteral l(v.getMessage().literal().dataliteral());
+
+
+    // TODO
+
+    return nullptr;
+}
+
 rasqal_literal *AsLiteral(rasqal_world* world, const rdf::Resource &r) {
     raptor_world* raptorWorld = rasqal_world_get_raptor(world);
     switch (r.type) {
@@ -130,8 +146,11 @@ rasqal_literal *AsLiteral(rasqal_world* world, const rdf::Value &v) {
         case rdf::Value::BNODE:
             return rasqal_new_simple_literal(
                     world, RASQAL_LITERAL_BLANK, (const unsigned char*)v.stringValue().c_str());
+        case rdf::Value::STRING_LITERAL:
+            return AsStringLiteral(world, v);
+        case rdf::Value::DATATYPE_LITERAL:
+            return AsDatatypeLiteral(world, v);
         default:
-            // TODO: literal types
             return nullptr;
     }
 }
