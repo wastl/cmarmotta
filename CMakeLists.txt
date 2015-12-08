@@ -25,5 +25,6 @@ add_subdirectory(client)
 add_subdirectory(parser)
 add_subdirectory(serializer)
 add_subdirectory(sharding)
+add_subdirectory(sparql)
 add_subdirectory(test)
 
