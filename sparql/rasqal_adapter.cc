@@ -16,7 +16,7 @@ void log_handler(void *user_data, raptor_log_message *message) {
     LOG(ERROR) << "SPARQL Error(" << message->code << "): " << message->text;
 }
 
-
+// Bind the current statement to the variables configured in the triple match.
 rasqal_triple_parts bind_match(
         struct rasqal_triples_match_s *rtm, void *user_data,
         rasqal_variable *bindings[4], rasqal_triple_parts parts) {
@@ -48,11 +48,13 @@ rasqal_triple_parts bind_match(
     return (rasqal_triple_parts) r;
 }
 
+// Increment the iterator contained in the triple match user data.
 void next_match(struct rasqal_triples_match_s *rtm, void *user_data) {
     StatementIterator *it = (StatementIterator *) rtm->user_data;
     ++(*it);
 }
 
+// Return true in case the iterator has no next element.
 int is_end(struct rasqal_triples_match_s *rtm, void *user_data) {
     StatementIterator *it = (StatementIterator *) rtm->user_data;
     return !it->hasNext();
@@ -64,7 +66,7 @@ void finish(struct rasqal_triples_match_s *rtm, void *user_data) {
     delete it;
 }
 
-
+// Init a Rasqal triples match using the interator returned by GetStatements()
 int init_triples_match(
         rasqal_triples_match *rtm, struct rasqal_triples_source_s *rts,
         void *user_data, rasqal_triple_meta *m, rasqal_triple *t) {
@@ -98,8 +100,6 @@ int init_triples_match(
     rtm->next_match = next_match;
     rtm->is_end = is_end;
     rtm->finish = finish;
-
-    rasqal_variable* var;
 
     m->bindings[0]=rasqal_literal_as_variable(t->subject);
     m->bindings[1]=rasqal_literal_as_variable(t->predicate);
@@ -135,6 +135,7 @@ void free_triples_source(void *user_data) {
     DLOG(INFO) << "Free triples source";
 }
 
+// Init a Rasqal triple source, wrapping the Marmotta TripleSource (factory_user_data)
 int new_triples_source(rasqal_query* query, void *factory_user_data, void *user_data, rasqal_triples_source* rts) {
     DLOG(INFO) << "Init triples source";
 
@@ -145,15 +146,16 @@ int new_triples_source(rasqal_query* query, void *factory_user_data, void *user_
     rts->free_triples_source = free_triples_source;
 
     return 0;
-
 }
 
+// Init a Rasqal triple source, wrapping the Marmotta TripleSource (factory_user_data)
 int init_triples_source(
         rasqal_query *query, void *factory_user_data, void *user_data,
         rasqal_triples_source *rts, rasqal_triples_error_handler handler) {
     return new_triples_source(query, factory_user_data, user_data, rts);
 }
 
+// Init a Rasqal triple factory
 int init_factory(rasqal_triples_source_factory *factory) {
     DLOG(INFO) << "Init query factory";
     factory->version = 1;
