@@ -4,6 +4,7 @@
 
 #include <raptor2/raptor2.h>
 #include <rasqal/rasqal.h>
+#include <glog/logging.h>
 #include "rasqal_model.h"
 
 namespace marmotta {
@@ -29,7 +30,7 @@ rdf::Value ConvertValue(rasqal_literal *node) {
     char* s;
     switch (node->type) {
         case RASQAL_LITERAL_URI:
-            return rdf::URI(label);
+            return rdf::URI((const char*)raptor_uri_as_string(node->value.uri));
         case RASQAL_LITERAL_BLANK:
             return rdf::BNode(label);
         case RASQAL_LITERAL_STRING:
@@ -74,6 +75,7 @@ rdf::Value ConvertValue(rasqal_literal *node) {
             free(s);
             return std::move(r); // r is an lvalue, explicit move
         default:
+            LOG(INFO) << "Error: unsupported node type " << node->type;
             return rdf::Value();
     }
 }

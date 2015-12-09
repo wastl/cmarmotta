@@ -67,18 +67,36 @@ class TripleSource {
             const rdf::Resource* c) = 0;
 };
 
+class SparqlException : public std::exception {
+ public:
+
+    SparqlException(const std::string &message, const std::string &query) : message(message), query(query) { }
+
+    const char *what() const noexcept override {
+        return message.c_str();
+    }
+
+ private:
+    std::string message;
+    std::string query;
+};
+
 /**
  * Class SparqlService provides a SPARQL wrapper around a triple source using
  * Rasqal.
  */
 class SparqlService {
  public:
+    using RowType = std::map<std::string, rdf::Value>;
+
     SparqlService(std::unique_ptr<TripleSource> source);
 
     /**
      * Free any C-style resources, particularly the rasqal world.
      */
     ~SparqlService();
+
+    void TupleQuery(const std::string query, std::function<bool(const RowType&)> row_handler);
 
     /**
      * Return a reference to the triple source managed by this service.

@@ -16,7 +16,7 @@ find_package (LevelDB REQUIRED)
 find_package (GLog REQUIRED)
 find_package (Tcmalloc)
 
-add_definitions(-DNDEBUG)
+#add_definitions(-DNDEBUG)
 
 add_subdirectory(util)
 add_subdirectory(model)
