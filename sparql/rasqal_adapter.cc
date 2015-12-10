@@ -3,10 +3,12 @@
 //
 #include <functional>
 
+#include <raptor2/raptor2.h>
 #include <rasqal/rasqal.h>
 #include <glog/logging.h>
-#include <raptor2.h>
-#include "rasqal_adapter.h"
+
+#include "sparql/rasqal_adapter.h"
+#include "sparql/rasqal_model.h"
 
 namespace marmotta {
 namespace sparql {

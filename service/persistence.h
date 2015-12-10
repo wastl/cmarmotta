@@ -15,6 +15,7 @@
 
 #include "model/rdf_model.h"
 #include "service/sail.pb.h"
+#include "util/iterator.h"
 
 namespace marmotta {
 namespace persistence {
@@ -31,16 +32,6 @@ class KeyComparator : public leveldb::Comparator {
     void FindShortSuccessor(std::string*) const { }
 };
 
-// Interface for an STL iterator yielding elements of parameterized types.
-template <class Proto>
-class Iterator {
- public:
-    virtual Iterator<Proto>& operator++() = 0;
-    virtual Proto& operator*() = 0;
-    virtual Proto* operator->() = 0;
-    virtual bool operator==(const Iterator<Proto>& other) = 0;
-    virtual bool operator!=(const Iterator<Proto>& other) = 0;
-};
 
 // Statistical data about updates.
 struct UpdateStatistics {
@@ -55,9 +46,9 @@ struct UpdateStatistics {
  */
 class LevelDBPersistence {
  public:
-    typedef Iterator<rdf::proto::Statement> StatementIterator;
-    typedef Iterator<rdf::proto::Namespace> NamespaceIterator;
-    typedef Iterator<service::proto::UpdateRequest> UpdateIterator;
+    typedef util::CloseableIterator<rdf::proto::Statement> StatementIterator;
+    typedef util::CloseableIterator<rdf::proto::Namespace> NamespaceIterator;
+    typedef util::CloseableIterator<service::proto::UpdateRequest> UpdateIterator;
 
     typedef std::function<bool(const rdf::proto::Statement&)> StatementHandler;
     typedef std::function<bool(const rdf::proto::Namespace&)> NamespaceHandler;
@@ -69,14 +60,14 @@ class LevelDBPersistence {
     LevelDBPersistence(const std::string& path, int64_t cacheSize);
 
     /**
-     * Add the namespaces between begin and end to the database.
+     * Add the namespaces in the iterator to the database.
      */
-    int64_t AddNamespaces(NamespaceIterator& begin, const NamespaceIterator& end);
+    int64_t AddNamespaces(NamespaceIterator& it);
 
     /**
-     * Add the statements between begin and end to the database.
+     * Add the statements in the iterator to the database.
      */
-    int64_t AddStatements(StatementIterator& begin, const StatementIterator& end);
+    int64_t AddStatements(StatementIterator& it);
 
     /**
      * Get all statements matching the pattern (which may have some fields
@@ -87,12 +78,28 @@ class LevelDBPersistence {
                        StatementHandler callback);
 
     /**
+     * Get all statements matching the pattern (which may have some fields
+     * unset to indicate wildcards). Call the callback function for each
+     * result.
+     */
+    std::unique_ptr<StatementIterator>
+            GetStatements(const rdf::proto::Statement& pattern);
+
+    /**
      * Get all namespaces matching the pattern (which may have some of all
      * fields unset to indicate wildcards). Call the callback function for
      * each result.
      */
     void GetNamespaces(const rdf::proto::Namespace &pattern,
                        NamespaceHandler callback);
+
+    /**
+     * Get all namespaces matching the pattern (which may have some of all
+     * fields unset to indicate wildcards). Call the callback function for
+     * each result.
+     */
+    std::unique_ptr<NamespaceIterator>
+            GetNamespaces(const rdf::proto::Namespace &pattern);
 
     /**
      * Remove all statements matching the pattern (which may have some fields
@@ -105,7 +112,7 @@ class LevelDBPersistence {
      * The updates are collected in LevelDB batches and written atomically to
      * the database when iteration ends.
      */
-    UpdateStatistics Update(UpdateIterator& begin, const UpdateIterator& end);
+    UpdateStatistics Update(UpdateIterator& it);
 
     /**
      * Return the size of this database.

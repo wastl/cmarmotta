@@ -1,4 +1,4 @@
-include_directories(.. ${CMAKE_CURRENT_BINARY_DIR}/.. ${CMAKE_CURRENT_BINARY_DIR}/../model)
+include_directories(.. ${CMAKE_CURRENT_BINARY_DIR}/.. ${CMAKE_CURRENT_BINARY_DIR}/../model ${RAPTOR_INCLUDE_DIR}/raptor2)
 
 file(GLOB ProtoFiles "${CMAKE_CURRENT_SOURCE_DIR}/*.proto")
 PROTOBUF_GENERATE_CPP(PROTO_SRCS PROTO_HDRS ${ProtoFiles})
@@ -8,9 +8,9 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_library(marmotta_service ${PROTO_SRCS} ${PROTO_HDRS} ${GRPC_SRCS} ${GRPC_HDRS})
 target_link_libraries(marmotta_service marmotta_model ${CMAKE_THREAD_LIBS_INIT} ${PROTOBUF_LIBRARIES} ${GRPC_LIBRARIES})
 
-add_executable(marmotta_persistence persistence.cc persistence.h service.cc service.h server.cc)
+add_executable(marmotta_persistence persistence.cc persistence.h service.cc service.h server.cc sparql.cc sparql.h)
 target_link_libraries(marmotta_persistence
-        marmotta_model marmotta_service marmotta_util
+        marmotta_model marmotta_service marmotta_util marmotta_sparql
         ${LevelDB_LIBRARY} ${GFLAGS_LIBRARY} ${GLOG_LIBRARY}
         ${CMAKE_THREAD_LIBS_INIT} ${PROTOBUF_LIBRARIES} ${GRPC_LIBRARIES} ${Tcmalloc_LIBRARIES})
 

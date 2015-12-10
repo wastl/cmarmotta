@@ -310,5 +310,25 @@ DatatypeLiteral &DatatypeLiteral::operator=(DatatypeLiteral &&other) {
     internal_.Swap(&other.internal_);
     return *this;
 }
+
+Statement &Statement::operator=(const proto::Statement &other) {
+    internal_.MergeFrom(other);
+    return *this;
+}
+
+Statement &Statement::operator=(proto::Statement &&other) {
+    internal_.Swap(&other);
+    return *this;
+}
+
+Statement &Statement::operator=(const Statement &other) {
+    internal_.MergeFrom(other.internal_);
+    return *this;
+}
+
+Statement &Statement::operator=(Statement &&other) {
+    internal_.Swap(&other.internal_);
+    return *this;
+}
 }  // namespace rdf
 }  // namespace marmotta

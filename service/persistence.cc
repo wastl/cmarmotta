@@ -28,6 +28,8 @@ using marmotta::rdf::proto::Resource;
 
 namespace marmotta {
 namespace persistence {
+namespace {
+
 
 #if KEY_LENGTH == 8
 static std::hash<std::string> g_hash_fn;
@@ -190,6 +192,56 @@ class PatternQuery {
     IndexType type_;
 };
 
+
+// Iterator wrapping a LevelDB iterator over a given key range.
+class StatementRangeIterator : public util::CloseableIterator<Statement> {
+ public:
+
+
+    StatementRangeIterator(leveldb::Iterator *it, char *loKey, char *hiKey)
+            : it(it), loKey(loKey), hiKey(hiKey), parsed(false) {
+        it->Seek(leveldb::Slice(loKey, 4 * KEY_LENGTH));
+    }
+
+
+    ~StatementRangeIterator() override {
+        delete it;
+        free(loKey);
+        free(hiKey);
+    };
+
+    util::CloseableIterator<Statement> &operator++() override {
+        it->Next();
+        parsed = false;
+        return *this;
+    };
+
+    Statement &operator*() override {
+        if (!parsed)
+            stmt.ParseFromString(it->value().ToString());
+        return stmt;
+    };
+
+    Statement *operator->() override {
+        if (!parsed)
+            stmt.ParseFromString(it->value().ToString());
+        return &stmt;
+    };
+
+    bool hasNext() override {
+        return it->Valid() && it->key().compare(leveldb::Slice(hiKey, 4 * KEY_LENGTH)) <= 0;
+    }
+
+ private:
+    leveldb::Iterator* it;
+    char *loKey;
+    char *hiKey;
+
+    Statement stmt;
+    bool parsed;
+};
+
+
 /**
  * Check if a statement matches with a partial pattern.
  */
@@ -209,6 +261,8 @@ bool matches(const Statement& stmt, const Statement& pattern) {
     }
     return true;
 }
+
+}  // namespace
 
 
 /**
@@ -253,13 +307,13 @@ LevelDBPersistence::LevelDBPersistence(const std::string &path, int64_t cacheSiz
         , db_meta(buildDB(path, "metadata", buildNsOptions())) { }
 
 
-int64_t LevelDBPersistence::AddNamespaces(NamespaceIterator& begin, const NamespaceIterator& end) {
+int64_t LevelDBPersistence::AddNamespaces(NamespaceIterator& it) {
     DLOG(INFO) << "Starting batch namespace import operation.";
     int64_t count = 0;
 
     leveldb::WriteBatch batch_prefix, batch_url;
 
-    for (auto& it = begin; begin != end; ++it) {
+    for (; it.hasNext(); ++it) {
         AddNamespace(*it, batch_prefix, batch_url);
         count++;
     }
@@ -308,13 +362,13 @@ void LevelDBPersistence::GetNamespaces(
 }
 
 
-int64_t LevelDBPersistence::AddStatements(StatementIterator& begin, const StatementIterator& end) {
+int64_t LevelDBPersistence::AddStatements(StatementIterator& it) {
     auto start = std::chrono::steady_clock::now();
     LOG(INFO) << "Starting batch statement import operation.";
     int64_t count = 0;
 
     leveldb::WriteBatch batch_spoc, batch_cspo, batch_opsc, batch_pcos;
-    for (auto& it = begin; begin != end; ++it) {
+    for (; it.hasNext(); ++it) {
         AddStatement(*it, batch_spoc, batch_cspo, batch_opsc, batch_pcos);
         count++;
     }
@@ -346,19 +400,13 @@ int64_t LevelDBPersistence::AddStatements(StatementIterator& begin, const Statem
 }
 
 
-
-void LevelDBPersistence::GetStatements(
-        const Statement& pattern, std::function<bool(const Statement&)> callback) {
-    auto start = std::chrono::steady_clock::now();
+std::unique_ptr<LevelDBPersistence::StatementIterator> LevelDBPersistence::GetStatements(
+        const rdf::proto::Statement &pattern) {
     DLOG(INFO) << "Get statements matching pattern " << pattern.DebugString();
-    int64_t count = 0;
 
     PatternQuery query(pattern);
 
     leveldb::DB* db;
-    char *loKey = query.MinKey();
-    char *hiKey = query.MaxKey();
-
     switch (query.Type()) {
         case PatternQuery::SPOC:
             db = db_spoc.get();
@@ -378,22 +426,21 @@ void LevelDBPersistence::GetStatements(
             break;
     };
 
-    Statement stmt;
-    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
-    bool cbsuccess = true;
-    for (it->Seek(leveldb::Slice(loKey, 4 * KEY_LENGTH));
-         cbsuccess && it->Valid() && it->key().compare(leveldb::Slice(hiKey, 4 * KEY_LENGTH)) <= 0;
-         it->Next()) {
-        stmt.ParseFromString(it->value().ToString());
-        if (matches(stmt, pattern)) {
-            cbsuccess = callback(stmt);
-            count++;
-        }
-    }
+    return std::unique_ptr<StatementIterator>(new StatementRangeIterator(
+            db->NewIterator(leveldb::ReadOptions()), query.MinKey(), query.MaxKey()));
+}
 
-    delete it;
-    free(loKey);
-    free(hiKey);
+
+void LevelDBPersistence::GetStatements(
+        const Statement& pattern, std::function<bool(const Statement&)> callback) {
+    auto start = std::chrono::steady_clock::now();
+    int64_t count = 0;
+
+    bool cbsuccess = true;
+    for(auto it = GetStatements(pattern); cbsuccess && it->hasNext(); ++(*it)) {
+        cbsuccess = callback(**it);
+        count++;
+    }
 
     DLOG(INFO) << "Get statements done (count=" << count << ", time="
                << std::chrono::duration <double, std::milli> (
@@ -439,14 +486,13 @@ int64_t LevelDBPersistence::RemoveStatements(const rdf::proto::Statement& patter
     return count;
 }
 
-UpdateStatistics LevelDBPersistence::Update(LevelDBPersistence::UpdateIterator &begin,
-                                            const LevelDBPersistence::UpdateIterator &end) {
+UpdateStatistics LevelDBPersistence::Update(LevelDBPersistence::UpdateIterator &it) {
     auto start = std::chrono::steady_clock::now();
     DLOG(INFO) << "Starting batch update operation.";
     UpdateStatistics stats;
 
     WriteBatch b_spoc, b_cspo, b_opsc, b_pcos, b_prefix, b_url;
-    for (auto& it = begin; begin != end; ++it) {
+    for (; it.hasNext(); ++it) {
         if (it->has_stmt_added()) {
             AddStatement(it->stmt_added(), b_spoc, b_cspo, b_opsc, b_pcos);
             stats.added_stmts++;
@@ -611,6 +657,7 @@ int64_t LevelDBPersistence::Size() {
     delete it;
     return count;
 }
+
 }  // namespace persistence
 }  // namespace marmotta
 

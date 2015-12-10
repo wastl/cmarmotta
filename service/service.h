@@ -68,6 +68,9 @@ class LevelDBService : public svc::SailService::Service {
                       const svc::ContextRequest* contexts,
                       google::protobuf::Int64Value* result) override;
 
+    grpc::Status TupleQuery(grpc::ServerContext* context,
+                               const svc::SparqlRequest* pattern,
+                               grpc::ServerWriter<svc::SparqlResponse>* result) override;
  private:
     persistence::LevelDBPersistence persistence;
 };

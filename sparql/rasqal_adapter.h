@@ -5,40 +5,16 @@
 #ifndef MARMOTTA_RASQAL_ADAPTER_H
 #define MARMOTTA_RASQAL_ADAPTER_H
 
-#include "sparql/rasqal_model.h"
+#include <memory>
+#include <rasqal/rasqal.h>
+
+#include "model/rdf_model.h"
+#include "util/iterator.h"
 
 namespace marmotta {
 namespace sparql {
 
-/**
- * An interface for iterators over statements. Needs to be implemented by concrete
- * subclasses of TripleSource.
- */
-class StatementIterator {
- public:
-
-    virtual ~StatementIterator() {}
-
-    /**
-     * Increment iterator to next statement.
-     */
-    virtual StatementIterator& operator++() = 0;
-
-    /**
-     * Dereference iterator, returning a reference to the current statement.
-     */
-    virtual rdf::Statement& operator*() = 0;
-
-    /**
-     * Dereference iterator, returning a pointer to the current statement.
-     */
-    virtual rdf::Statement* operator->() = 0;
-
-    /**
-     * Return true in case the iterator has more elements.
-     */
-    virtual bool hasNext() = 0;
-};
+using StatementIterator = util::CloseableIterator<rdf::Statement>;
 
 /**
  * An abstract superclass for more easily interfacing from the C++ Marmotta model

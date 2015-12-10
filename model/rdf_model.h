@@ -9,6 +9,7 @@
 #include <iostream>
 
 #include "model/model.pb.h"
+#include "../../../../.CLion12/system/cmake/generated/9b10467e/9b10467e/Debug/model/model.pb.h"
 
 namespace marmotta {
 namespace rdf {
@@ -479,6 +480,8 @@ class Resource {
 
 class Statement {
  public:
+    Statement() {}
+
     Statement(const Statement& other) : internal_(other.internal_) {}
     Statement(Statement&& other) {
         internal_.Swap(&other.internal_);
@@ -488,6 +491,12 @@ class Statement {
     Statement(proto::Statement&& other) {
         internal_.Swap(&other);
     }
+
+    Statement & operator=(const proto::Statement &other);
+    Statement & operator=(proto::Statement &&other);
+    Statement & operator=(const Statement &other);
+    Statement & operator=(Statement &&other);
+
 
     Statement(Resource const &subject, URI const &predicate, Value const &object) {
         internal_.mutable_subject()->MergeFrom(subject.getMessage());

@@ -3,9 +3,11 @@
 //
 
 #include "service.h"
+#include "sparql.h"
 
 #include <unordered_set>
 #include <model/rdf_operators.h>
+#include <util/iterator.h>
 
 using grpc::Status;
 using grpc::StatusCode;
@@ -27,16 +29,15 @@ namespace service {
 
 // A STL iterator wrapper around a client reader.
 template <class Proto>
-class ReaderIterator : public persistence::Iterator<Proto> {
+class ReaderIterator : public util::CloseableIterator<Proto> {
  public:
-    ReaderIterator() : finished(true) { }
 
     ReaderIterator(grpc::ServerReader<Proto>* r) : reader(r), finished(false) {
         // Immediately move to first element.
         operator++();
     }
 
-    persistence::Iterator<Proto>& operator++() override {
+    util::CloseableIterator<Proto>& operator++() override {
         if (!finished) {
             finished = !reader->Read(&buffer);
         }
@@ -51,16 +52,8 @@ class ReaderIterator : public persistence::Iterator<Proto> {
         return &buffer;
     }
 
-    bool operator==(const persistence::Iterator<Proto>& other) override {
-        return finished == static_cast<const ReaderIterator<Proto>&>(other).finished;
-    }
-
-    bool operator!=(const persistence::Iterator<Proto>& other) override {
-        return finished != static_cast<const ReaderIterator<Proto>&>(other).finished;
-    }
-
-    static ReaderIterator<Proto> end() {
-        return ReaderIterator<Proto>();
+    bool hasNext() override {
+        return !finished;
     }
 
  private:
@@ -77,9 +70,8 @@ typedef ReaderIterator<service::proto::UpdateRequest> UpdateIterator;
 Status LevelDBService::AddNamespaces(
         ServerContext* context, ServerReader<Namespace>* reader, Int64Value* result) {
 
-    auto begin = NamespaceIterator(reader);
-    auto end   = NamespaceIterator::end();
-    int64_t count = persistence.AddNamespaces(begin, end);
+    auto it = NamespaceIterator(reader);
+    int64_t count = persistence.AddNamespaces(it);
     result->set_value(count);
 
     return Status::OK;
@@ -113,9 +105,8 @@ grpc::Status LevelDBService::GetNamespaces(
 Status LevelDBService::AddStatements(
         ServerContext* context, ServerReader<Statement>* reader, Int64Value* result) {
 
-    auto begin = StatementIterator(reader);
-    auto end   = StatementIterator::end();
-    int64_t count = persistence.AddStatements(begin, end);
+    auto it = StatementIterator(reader);
+    int64_t count = persistence.AddStatements(it);
     result->set_value(count);
 
     return Status::OK;
@@ -209,9 +200,8 @@ grpc::Status LevelDBService::Update(grpc::ServerContext *context,
                                     grpc::ServerReader<service::proto::UpdateRequest> *reader,
                                     service::proto::UpdateResponse *result) {
 
-    auto begin = UpdateIterator(reader);
-    auto end   = UpdateIterator::end();
-    persistence::UpdateStatistics stats = persistence.Update(begin, end);
+    auto it = UpdateIterator(reader);
+    persistence::UpdateStatistics stats = persistence.Update(it);
 
     result->set_added_namespaces(stats.added_ns);
     result->set_removed_namespaces(stats.removed_ns);
@@ -220,5 +210,29 @@ grpc::Status LevelDBService::Update(grpc::ServerContext *context,
 
     return Status::OK;
 }
+
+
+grpc::Status LevelDBService::TupleQuery(grpc::ServerContext* context,
+                        const svc::SparqlRequest* query,
+                        grpc::ServerWriter<svc::SparqlResponse>* result) {
+
+    sparql::SparqlService svc(
+        std::unique_ptr<sparql::TripleSource>(
+                new persistence::sparql::LevelDBTripleSource(&persistence)));
+
+    svc.TupleQuery(query->query(), [&result](const sparql::SparqlService::RowType& row) {
+        svc::SparqlResponse response;
+        for (auto it = row.cbegin(); it != row.cend(); it++) {
+            auto b = response.add_binding();
+            b->set_variable(it->first);
+            *b->mutable_value() = it->second.getMessage();
+        }
+        result->Write(response);
+        return true;
+    });
+
+    return Status::OK;
+}
+
 }  // namespace service
 }  // namespace marmotta

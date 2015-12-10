@@ -143,6 +143,22 @@ class MarmottaClient {
         }
     }
 
+    void tupleQuery(const std::string& query, std::ostream &out) {
+        ClientContext context;
+        svc::SparqlRequest request;
+        request.set_query(query);
+
+        std::unique_ptr<ClientReader<svc::SparqlResponse>> reader(
+                stub_->TupleQuery(&context, request));
+
+        auto out_ = new google::protobuf::io::OstreamOutputStream(&out);
+        svc::SparqlResponse result;
+        while (reader->Read(&result)) {
+            TextFormat::Print(result, dynamic_cast<google::protobuf::io::ZeroCopyOutputStream*>(out_));
+        }
+        delete out_;
+    }
+
     void listNamespaces(std::ostream &out) {
         ClientContext context;
 
@@ -200,6 +216,16 @@ int main(int argc, char** argv) {
             client.patternQuery(rdf::Statement(query), out, serializer::FormatFromString(FLAGS_format));
         } else {
             client.patternQuery(rdf::Statement(query), std::cout, serializer::FormatFromString(FLAGS_format));
+        }
+    }
+
+    if ("sparql" == std::string(argv[1])) {
+        std::string query = argv[2];
+        if (FLAGS_output != "") {
+            std::ofstream out(FLAGS_output);
+            client.tupleQuery(query, out);
+        } else {
+            client.tupleQuery(query, std::cout);
         }
     }
 
