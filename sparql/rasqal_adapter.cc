@@ -92,6 +92,7 @@ void finish(struct rasqal_triples_match_s *rtm, void *user_data) {
     DLOG(INFO) << "Finish result iteration.";
     StatementIterator *it = (StatementIterator *) rtm->user_data;
     delete it;
+    rtm->user_data = nullptr;
 }
 
 // Init a Rasqal triples match using the interator returned by GetStatements()
@@ -233,7 +234,7 @@ SparqlService::~SparqlService() {
 void SparqlService::TupleQuery(const std::string& query, std::function<bool(const RowType&)> row_handler) {
     auto q = rasqal_new_query(world, "sparql11-query", nullptr);
     auto base = raptor_new_uri(rasqal_world_get_raptor(world), (const unsigned char*)"http://example.com");
-    if (rasqal_query_prepare(q, (const unsigned char*)strdup(query.c_str()), base) != 0) {
+    if (rasqal_query_prepare(q, (const unsigned char*)query.c_str(), base) != 0) {
         raptor_free_uri(base);
         rasqal_free_query(q);
         throw SparqlException("Query preparation failed", query);

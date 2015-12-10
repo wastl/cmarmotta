@@ -167,6 +167,29 @@ TEST(SPARQLTest, BNode) {
     EXPECT_EQ("n1", s.stringValue());
 }
 
+TEST(SPARQLTest, Join) {
+    SparqlService svc(std::unique_ptr<TripleSource>(new MockTripleSource(
+            {
+                    rdf::Statement(rdf::URI("http://example.com/s1"), rdf::URI("http://example.com/p1"), rdf::URI("http://example.com/o1")),
+                    rdf::Statement(rdf::URI("http://example.com/o1"), rdf::URI("http://example.com/p2"), rdf::URI("http://example.com/o2"))
+            }
+    )));
+
+    int count = 0;
+    rdf::Value s, o;
+    svc.TupleQuery("SELECT * WHERE {?s ?p1 ?o1 . ?o1 ?p2 ?o }", [&](const SparqlService::RowType& row) {
+        count++;
+        s = row.at("s");
+        o = row.at("o");
+
+        return true;
+    });
+
+    EXPECT_EQ(1, count);
+    EXPECT_EQ("http://example.com/s1", s.stringValue());
+    EXPECT_EQ("http://example.com/o2", o.stringValue());
+}
+
 
 }  // namespace sparql
 }  // namespace marmotta

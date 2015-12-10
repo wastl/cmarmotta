@@ -11,6 +11,8 @@ namespace marmotta {
 namespace sparql {
 namespace rasqal {
 
+// Helper macros. Some Rasqal functions copy the input string themselves, others don't.
+#define STR(s) (const unsigned char*)s.c_str()
 #define CPSTR(s) (const unsigned char*)strdup(s.c_str())
 
 rdf::Resource ConvertResource(rasqal_literal *node) {
@@ -130,7 +132,7 @@ rasqal_literal *AsDatatypeLiteral(rasqal_world* world, const rdf::Value &v) {
             world,
             CPSTR(l.getContent()),
             nullptr,
-            raptor_new_uri(raptorWorld, CPSTR(l.getDatatype().stringValue())),
+            raptor_new_uri(raptorWorld, STR(l.getDatatype().stringValue())),
             nullptr);
 }
 
@@ -140,7 +142,7 @@ rasqal_literal *AsLiteral(rasqal_world* world, const rdf::Resource &r) {
         case rdf::Resource::URI:
             return rasqal_new_uri_literal(
                     world,
-                    raptor_new_uri(raptorWorld, CPSTR(r.stringValue())));
+                    raptor_new_uri(raptorWorld, STR(r.stringValue())));
         case rdf::Resource::BNODE:
             return rasqal_new_simple_literal(
                     world, RASQAL_LITERAL_BLANK, CPSTR(r.stringValue()));
@@ -154,7 +156,7 @@ rasqal_literal *AsLiteral(rasqal_world* world, const rdf::Value &v) {
     switch (v.type) {
         case rdf::Value::URI:
             return rasqal_new_uri_literal(
-                    world, raptor_new_uri(raptorWorld, CPSTR(v.stringValue())));
+                    world, raptor_new_uri(raptorWorld, STR(v.stringValue())));
         case rdf::Value::BNODE:
             return rasqal_new_simple_literal(
                     world, RASQAL_LITERAL_BLANK, CPSTR(v.stringValue()));
@@ -170,7 +172,7 @@ rasqal_literal *AsLiteral(rasqal_world* world, const rdf::Value &v) {
 rasqal_literal *AsLiteral(rasqal_world* world, const rdf::URI &u) {
     raptor_world* raptorWorld = rasqal_world_get_raptor(world);
     return rasqal_new_uri_literal(
-            world, raptor_new_uri(raptorWorld, CPSTR(u.stringValue())));
+            world, raptor_new_uri(raptorWorld, STR(u.stringValue())));
 }
 }  // namespace rasqal
 }  // namespace sparql
