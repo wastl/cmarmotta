@@ -11,14 +11,16 @@ namespace marmotta {
 namespace sparql {
 namespace rasqal {
 
+#define CPSTR(s) (const unsigned char*)strdup(s.c_str())
 
 rdf::Resource ConvertResource(rasqal_literal *node) {
     switch (node->type) {
         case RASQAL_LITERAL_URI:
-            return rdf::URI(std::string((const char*)node->string, node->string_len));
+            return rdf::URI(std::string((const char*)raptor_uri_as_string(node->value.uri)));
         case RASQAL_LITERAL_BLANK:
             return rdf::BNode(std::string((const char*)node->string, node->string_len));
         default:
+            LOG(INFO) << "Error: unsupported resource type " << node->type;
             return rdf::Resource();
     }
 }
@@ -113,7 +115,11 @@ rasqal_literal *AsStringLiteral(rasqal_world* world, const rdf::Value &v) {
     rdf::StringLiteral l(v.getMessage().literal().stringliteral());
 
     return rasqal_new_string_literal(
-            world, (const unsigned char*)l.getContent().c_str(), l.getLanguage().c_str(), nullptr, nullptr);
+            world,
+            CPSTR(l.getContent()),
+            strdup(l.getLanguage().c_str()),
+            nullptr,
+            nullptr);
 }
 
 rasqal_literal *AsDatatypeLiteral(rasqal_world* world, const rdf::Value &v) {
@@ -121,9 +127,10 @@ rasqal_literal *AsDatatypeLiteral(rasqal_world* world, const rdf::Value &v) {
     rdf::DatatypeLiteral l(v.getMessage().literal().dataliteral());
 
     return rasqal_new_string_literal(
-            world, (const unsigned char*)l.getContent().c_str(), nullptr,
-            raptor_new_uri(
-                    raptorWorld, (const unsigned char*)l.getDatatype().stringValue().c_str()),
+            world,
+            CPSTR(l.getContent()),
+            nullptr,
+            raptor_new_uri(raptorWorld, CPSTR(l.getDatatype().stringValue())),
             nullptr);
 }
 
@@ -131,11 +138,12 @@ rasqal_literal *AsLiteral(rasqal_world* world, const rdf::Resource &r) {
     raptor_world* raptorWorld = rasqal_world_get_raptor(world);
     switch (r.type) {
         case rdf::Resource::URI:
-            return rasqal_new_uri_literal(world, raptor_new_uri(
-                    raptorWorld, (const unsigned char*)r.stringValue().c_str()));
+            return rasqal_new_uri_literal(
+                    world,
+                    raptor_new_uri(raptorWorld, CPSTR(r.stringValue())));
         case rdf::Resource::BNODE:
             return rasqal_new_simple_literal(
-                    world, RASQAL_LITERAL_BLANK, (const unsigned char*)r.stringValue().c_str());
+                    world, RASQAL_LITERAL_BLANK, CPSTR(r.stringValue()));
         default:
             return nullptr;
     }
@@ -145,11 +153,11 @@ rasqal_literal *AsLiteral(rasqal_world* world, const rdf::Value &v) {
     raptor_world* raptorWorld = rasqal_world_get_raptor(world);
     switch (v.type) {
         case rdf::Value::URI:
-            return rasqal_new_uri_literal(world, raptor_new_uri(
-                    raptorWorld, (const unsigned char*)v.stringValue().c_str()));
+            return rasqal_new_uri_literal(
+                    world, raptor_new_uri(raptorWorld, CPSTR(v.stringValue())));
         case rdf::Value::BNODE:
             return rasqal_new_simple_literal(
-                    world, RASQAL_LITERAL_BLANK, (const unsigned char*)v.stringValue().c_str());
+                    world, RASQAL_LITERAL_BLANK, CPSTR(v.stringValue()));
         case rdf::Value::STRING_LITERAL:
             return AsStringLiteral(world, v);
         case rdf::Value::DATATYPE_LITERAL:
@@ -161,8 +169,8 @@ rasqal_literal *AsLiteral(rasqal_world* world, const rdf::Value &v) {
 
 rasqal_literal *AsLiteral(rasqal_world* world, const rdf::URI &u) {
     raptor_world* raptorWorld = rasqal_world_get_raptor(world);
-    return rasqal_new_uri_literal(world, raptor_new_uri(
-            raptorWorld, (const unsigned char*)u.stringValue().c_str()));
+    return rasqal_new_uri_literal(
+            world, raptor_new_uri(raptorWorld, CPSTR(u.stringValue())));
 }
 }  // namespace rasqal
 }  // namespace sparql

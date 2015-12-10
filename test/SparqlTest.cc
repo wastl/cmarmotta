@@ -1,6 +1,7 @@
 //
 // Created by wastl on 09.12.15.
 //
+#include <glog/logging.h>
 #include "gtest.h"
 #include "sparql/rasqal_adapter.h"
 #include "model/rdf_operators.h"
@@ -119,6 +120,53 @@ TEST(SPARQLTest, Simple) {
     EXPECT_EQ("http://example.com/p1", p.stringValue());
     EXPECT_EQ("http://example.com/o1", o.stringValue());
 }
+
+TEST(SPARQLTest, Filter) {
+    SparqlService svc(std::unique_ptr<TripleSource>(new MockTripleSource(
+            {
+                    rdf::Statement(rdf::URI("http://example.com/s1"), rdf::URI("http://example.com/p1"), rdf::URI("http://example.com/o1")),
+                    rdf::Statement(rdf::URI("http://example.com/s2"), rdf::URI("http://example.com/p2"), rdf::URI("http://example.com/o2"))
+            }
+    )));
+
+    int count = 0;
+    rdf::Value p, o;
+    svc.TupleQuery("SELECT * WHERE {<http://example.com/s1> ?p ?o}", [&](const SparqlService::RowType& row) {
+        count++;
+        p = row.at("p");
+        o = row.at("o");
+
+        return true;
+    });
+
+    EXPECT_EQ(1, count);
+    EXPECT_EQ("http://example.com/p1", p.stringValue());
+    EXPECT_EQ("http://example.com/o1", o.stringValue());
+}
+
+TEST(SPARQLTest, BNode) {
+    SparqlService svc(std::unique_ptr<TripleSource>(new MockTripleSource(
+            {
+                    rdf::Statement(rdf::BNode("n1"), rdf::URI("http://example.com/p1"), rdf::URI("http://example.com/o1")),
+                    rdf::Statement(rdf::BNode("n2"), rdf::URI("http://example.com/p2"), rdf::URI("http://example.com/o2"))
+            }
+    )));
+
+    int count = 0;
+    rdf::Value s, p;
+    svc.TupleQuery("SELECT * WHERE {?s ?p <http://example.com/o1>}", [&](const SparqlService::RowType& row) {
+        count++;
+        s = row.at("s");
+        p = row.at("p");
+
+        return true;
+    });
+
+    EXPECT_EQ(1, count);
+    EXPECT_EQ("http://example.com/p1", p.stringValue());
+    EXPECT_EQ("n1", s.stringValue());
+}
+
 
 }  // namespace sparql
 }  // namespace marmotta

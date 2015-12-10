@@ -96,7 +96,7 @@ class SparqlService {
      */
     ~SparqlService();
 
-    void TupleQuery(const std::string query, std::function<bool(const RowType&)> row_handler);
+    void TupleQuery(const std::string& query, std::function<bool(const RowType&)> row_handler);
 
     /**
      * Return a reference to the triple source managed by this service.
