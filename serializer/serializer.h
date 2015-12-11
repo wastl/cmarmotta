@@ -15,41 +15,40 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef MARMOTTA_RDF_SERIALIZER_H
-#define MARMOTTA_RDF_SERIALIZER_H
+#ifndef MARMOTTA_SERIALIZER_H
+#define MARMOTTA_SERIALIZER_H
 
 #include <serializer/base_serializer.h>
-#include <raptor2/raptor2.h>
 
 namespace marmotta {
 namespace serializer {
 
-/**
- * Serializer implementation using the Raptor library to write out statements
- * in different RDF serialization formats.
- */
-class RaptorSerializer : public SerializerBase {
+
+class Serializer {
  public:
-    RaptorSerializer(const rdf::URI& baseUri, Format format);
-    RaptorSerializer(const rdf::URI& baseUri, Format format, std::vector<rdf::Namespace> namespaces);
-    RaptorSerializer(const rdf::URI& baseUri, Format format, std::map<std::string, rdf::URI> namespaces);
-    ~RaptorSerializer() override;
+    using StatementIterator = util::CloseableIterator<rdf::Statement>;
+
+    Serializer(const rdf::URI& baseUri, Format format)
+            : Serializer(baseUri, format, std::map<std::string, rdf::URI>()) {};
+    Serializer(const rdf::URI& baseUri, Format format, std::vector<rdf::Namespace> namespaces);
+    Serializer(const rdf::URI& baseUri, Format format, std::map<std::string, rdf::URI> namespaces);
+
+    ~Serializer() {};
+
+    void serialize(const rdf::Statement& stmt, std::ostream& out) {
+        impl->serialize(stmt, out);
+    };
+
+    void serialize(StatementIterator it, std::ostream& out) {
+        impl->serialize(it, out);
+    };
 
  private:
-    raptor_serializer* serializer;
-    raptor_world*      world;
-    raptor_uri*        base;
-    raptor_iostream*   stream;
-
-    void prepare(std::ostream& out) override;
-    void serialize(const rdf::Statement& stmt) override;
-    void close() override;
-
-    void initRaptor();
+    std::unique_ptr<SerializerBase> impl;
 };
 
 
-}
-}
+}  // namespace serializer
+}  // namespace marmotta
 
-#endif //MARMOTTA_RDF_SERIALIZER_H
+#endif //MARMOTTA_SERIALIZER_H

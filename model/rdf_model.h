@@ -32,6 +32,10 @@ namespace rdf {
  */
 class Namespace {
  public:
+    /*
+     * default constructor, creates empty namespace.
+     */
+    Namespace() {}
 
     /**
      * Create a new namespace from the given prefix and uri (0-terminated

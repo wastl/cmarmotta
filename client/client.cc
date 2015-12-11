@@ -32,7 +32,7 @@
 
 #include "model/rdf_model.h"
 #include "parser/rdf_parser.h"
-#include "serializer/rdf_serializer.h"
+#include "serializer/serializer.h"
 #include "service/sail.pb.h"
 #include "service/sail.grpc.pb.h"
 
@@ -50,7 +50,7 @@ namespace svc = marmotta::service::proto;
 
 // A STL iterator wrapper around a client reader.
 template <class T, class Proto>
-class ClientReaderIterator {
+class ClientReaderIterator : public util::CloseableIterator<T> {
  public:
     ClientReaderIterator() : finished(true) { }
 
@@ -59,9 +59,10 @@ class ClientReaderIterator {
         operator++();
     }
 
-    ClientReaderIterator& operator++() {
+    ClientReaderIterator& operator++() override {
         if (!finished) {
             finished = !reader->Read(&buffer);
+            current = T(buffer);
             if (finished) {
                 reader->Finish();
             }
@@ -69,25 +70,22 @@ class ClientReaderIterator {
         return *this;
     }
 
-    T operator*() {
-        return T(buffer);
+    T& operator*() override {
+        return current;
     }
 
-    bool operator==(const ClientReaderIterator<T, Proto>& other) {
-        return finished == other.finished;
+    T* operator->() override {
+        return &current;
     }
 
-    bool operator!=(const ClientReaderIterator<T, Proto>& other) {
-        return finished != other.finished;
-    }
-
-    static ClientReaderIterator<T, Proto> end() {
-       return ClientReaderIterator<T, Proto>();
+    bool hasNext() override {
+        return !finished;
     }
 
  private:
     ClientReader<Proto>* reader;
     Proto buffer;
+    T current;
     bool finished;
 };
 
@@ -142,7 +140,7 @@ class MarmottaClient {
             stub_->GetStatements(&context, pattern.getMessage()));
 
         serializer::Serializer serializer("http://www.example.com", format);
-        serializer.serialize(StatementReader(reader.get()), StatementReader::end(), out);
+        serializer.serialize(StatementReader(reader.get()), out);
     }
 
     void patternDelete(const rdf::Statement &pattern) {
@@ -182,7 +180,7 @@ class MarmottaClient {
                 stub_->GetNamespaces(&context, pattern));
 
         NamespaceReader it(reader.get());
-        for (; it != NamespaceReader::end(); ++it) {
+        for (; it.hasNext(); ++it) {
             out << (*it).getPrefix() << " = " << (*it).getUri() << std::endl;
         }
     }

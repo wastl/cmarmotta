@@ -15,25 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <raptor2/raptor2.h>
 #include "rdf_serializer.h"
-#include <google/protobuf/text_format.h>
-#include <google/protobuf/io/coded_stream.h>
-#include <google/protobuf/io/zero_copy_stream.h>
 
 namespace marmotta {
-static std::map<std::string, rdf::URI> namespacesMap(std::vector<rdf::Namespace> list) {
-    std::map<std::string, rdf::URI> result;
-    for(auto it=list.cbegin(); it != list.cend(); it++) {
-        result[it->getPrefix()]=it->getUri();
-    }
-    return result;
-}
+namespace serializer {
 
+namespace {
 static int std_iostream_write_byte(void *context, const int byte) {
-    std::ostream* out = (std::ostream *) context;
+    std::ostream *out = (std::ostream *) context;
     out->write((char const *) &byte, 1);
-    if(*out) {
+    if (*out) {
         return 0;
     } else {
         return 1;
@@ -41,9 +32,9 @@ static int std_iostream_write_byte(void *context, const int byte) {
 }
 
 static int std_iostream_write_bytes(void *context, const void *ptr, size_t size, size_t nmemb) {
-    std::ostream* out = (std::ostream *) context;
+    std::ostream *out = (std::ostream *) context;
     out->write((char const *) ptr, size * nmemb);
-    if(*out) {
+    if (*out) {
         return 0;
     } else {
         return 1;
@@ -51,20 +42,20 @@ static int std_iostream_write_bytes(void *context, const void *ptr, size_t size,
 }
 
 static int std_iostream_read_bytes(void *context, void *ptr, size_t size, size_t nmemb) {
-    std::istream* in = (std::istream *)context;
+    std::istream *in = (std::istream *) context;
 
-    if(!*in) {
+    if (!*in) {
         return -1;
     }
 
-    in->read((char *) ptr, size*nmemb);
+    in->read((char *) ptr, size * nmemb);
     return (int) in->gcount();
 }
 
 static int std_iostream_read_eof(void *context) {
-    std::istream* in = (std::istream *)context;
+    std::istream *in = (std::istream *) context;
 
-    if(in->eof()) {
+    if (in->eof()) {
         return 1;
     } else {
         return 0;
@@ -76,37 +67,6 @@ const raptor_iostream_handler raptor_handler = {
         &std_iostream_write_byte, &std_iostream_write_bytes, NULL,
         &std_iostream_read_bytes, &std_iostream_read_eof
 };
-
-
-namespace serializer {
-Serializer::Serializer(const rdf::URI &baseUri, Format format, std::vector<rdf::Namespace> namespaces) {
-    switch(format) {
-        case PROTO:
-        case PROTO_TEXT:
-            impl.reset(new ProtoSerializer(baseUri, format, namespaces));
-            break;
-        default:
-            impl.reset(new RaptorSerializer(baseUri, format, namespaces));
-    }
-}
-
-Serializer::Serializer(const rdf::URI &baseUri, Format format, std::map<std::string, rdf::URI> namespaces) {
-    switch(format) {
-        case PROTO:
-        case PROTO_TEXT:
-            impl.reset(new ProtoSerializer(baseUri, format, namespaces));
-            break;
-        default:
-            impl.reset(new RaptorSerializer(baseUri, format, namespaces));
-    }
-}
-
-
-SerializerBase::SerializerBase(const rdf::URI& baseUri, Format format, std::vector<rdf::Namespace> namespaces)
-        : baseUri(baseUri), format(format), namespaces(namespacesMap(namespaces)) { }
-
-SerializerBase::SerializerBase(const rdf::URI& baseUri, Format format, std::map<std::string, rdf::URI> namespaces)
-        : baseUri(baseUri), format(format), namespaces(namespaces) { }
 
 
 inline std::string raptorFormat(Format format) {
@@ -131,7 +91,7 @@ inline std::string raptorFormat(Format format) {
             return "rdfxml";
     }
 }
-
+}  // namespace
 
 RaptorSerializer::RaptorSerializer(const rdf::URI& baseUri, Format format)
         : SerializerBase(baseUri, format) {
@@ -300,53 +260,6 @@ void RaptorSerializer::serialize(const rdf::Statement &stmt) {
 void RaptorSerializer::close() {
     raptor_serializer_serialize_end(serializer);
     raptor_free_iostream(stream);
-}
-
-void ProtoSerializer::prepare(std::ostream &out) {
-    out_ = new google::protobuf::io::OstreamOutputStream(&out);
-}
-
-void ProtoSerializer::serialize(const rdf::Statement &stmt) {
-    stmts_.add_statement()->MergeFrom(stmt.getMessage());
-}
-
-void ProtoSerializer::close() {
-    google::protobuf::io::CodedOutputStream* coded_output =
-            new google::protobuf::io::CodedOutputStream(out_);
-    switch (format) {
-        case PROTO:
-            stmts_.SerializeToCodedStream(coded_output);
-            break;
-        case PROTO_TEXT:
-            google::protobuf::TextFormat::Print(
-                    stmts_, dynamic_cast<google::protobuf::io::ZeroCopyOutputStream*>(out_));
-            break;
-    }
-    stmts_.Clear();
-    delete coded_output;
-    delete out_;
-}
-
-Format FormatFromString(const std::string &name) {
-    if (name == "rdfxml" || name == "rdf/xml" || name == "xml") {
-        return RDFXML;
-    }
-    if (name == "n3" || name == "ntriples" || name == "text/n3") {
-        return NTRIPLES;
-    }
-    if (name == "turtle" || name == "text/turtle") {
-        return TURTLE;
-    }
-    if (name == "textproto" || name == "text/proto") {
-        return PROTO_TEXT;
-    }
-    if (name == "proto" || name == "application/proto") {
-        return PROTO;
-    }
-    if (name == "json" || name == "application/json" || name == "application/rdf+json") {
-        return RDFJSON;
-    }
-    return RDFXML;
 }
 
 }  // namespace serializer
