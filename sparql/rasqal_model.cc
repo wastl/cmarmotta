@@ -88,7 +88,7 @@ rdf::Value ConvertValue(rasqal_literal *node) {
 rdf::URI ConvertURI(rasqal_literal *node) {
     switch (node->type) {
         case RASQAL_LITERAL_URI:
-            return rdf::URI(std::string((const char*)node->string, node->string_len));
+            return rdf::URI((const char*)raptor_uri_as_string(node->value.uri));
         default:
             return rdf::URI();
     }

@@ -193,39 +193,65 @@ class PatternQuery {
 };
 
 
-// Iterator wrapping a LevelDB iterator over a given key range.
-class StatementRangeIterator : public util::CloseableIterator<Statement> {
+// Base tterator for wrapping a LevelDB iterators.
+template<typename T>
+class LevelDBIterator : public util::CloseableIterator<T> {
  public:
 
-
-    StatementRangeIterator(leveldb::Iterator *it, char *loKey, char *hiKey)
-            : it(it), loKey(loKey), hiKey(hiKey), parsed(false) {
-        it->Seek(leveldb::Slice(loKey, 4 * KEY_LENGTH));
+    LevelDBIterator(leveldb::Iterator *it)
+        : it(it), parsed(false) {
+        it->SeekToFirst();
     }
 
-
-    ~StatementRangeIterator() override {
+    virtual ~LevelDBIterator() override {
         delete it;
-        free(loKey);
-        free(hiKey);
     };
 
-    util::CloseableIterator<Statement> &operator++() override {
+    util::CloseableIterator<T> &operator++() override {
         it->Next();
         parsed = false;
         return *this;
     };
 
-    Statement &operator*() override {
+    T &operator*() override {
         if (!parsed)
-            stmt.ParseFromString(it->value().ToString());
-        return stmt;
+            proto.ParseFromString(it->value().ToString());
+        return proto;
     };
 
-    Statement *operator->() override {
+    T *operator->() override {
         if (!parsed)
-            stmt.ParseFromString(it->value().ToString());
-        return &stmt;
+            proto.ParseFromString(it->value().ToString());
+        return &proto;
+    };
+
+    virtual bool hasNext() override {
+        return it->Valid();
+    }
+
+
+
+ protected:
+    leveldb::Iterator* it;
+
+    T proto;
+    bool parsed;
+};
+
+
+
+// Iterator wrapping a LevelDB Statement iterator over a given key range.
+class StatementRangeIterator : public LevelDBIterator<Statement> {
+ public:
+
+    StatementRangeIterator(leveldb::Iterator *it, char *loKey, char *hiKey)
+            : LevelDBIterator(it), loKey(loKey), hiKey(hiKey) {
+        it->Seek(leveldb::Slice(loKey, 4 * KEY_LENGTH));
+    }
+
+    ~StatementRangeIterator() override {
+        free(loKey);
+        free(hiKey);
     };
 
     bool hasNext() override {
@@ -233,12 +259,8 @@ class StatementRangeIterator : public util::CloseableIterator<Statement> {
     }
 
  private:
-    leveldb::Iterator* it;
     char *loKey;
     char *hiKey;
-
-    Statement stmt;
-    bool parsed;
 };
 
 
@@ -325,10 +347,9 @@ int64_t LevelDBPersistence::AddNamespaces(NamespaceIterator& it) {
     return count;
 }
 
-void LevelDBPersistence::GetNamespaces(
-        const Namespace &pattern, LevelDBPersistence::NamespaceHandler callback) {
+std::unique_ptr<LevelDBPersistence::NamespaceIterator> LevelDBPersistence::GetNamespaces(
+        const rdf::proto::Namespace &pattern) {
     DLOG(INFO) << "Get namespaces matching pattern " << pattern.DebugString();
-    int64_t count = 0;
 
     Namespace ns;
 
@@ -346,18 +367,30 @@ void LevelDBPersistence::GetNamespaces(
         leveldb::Status s = db->Get(leveldb::ReadOptions(), key, &value);
         if (s.ok()) {
             ns.ParseFromString(value);
-            callback(ns);
-            count++;
+            return std::unique_ptr<NamespaceIterator>(
+                    new util::SingletonIterator<Namespace>(ns));
+        } else {
+            return std::unique_ptr<NamespaceIterator>(
+                    new util::EmptyIterator<Namespace>());
         }
     } else {
         // Pattern was empty, iterate over all namespaces and report them.
-        std::unique_ptr<leveldb::Iterator> it(db_ns_prefix->NewIterator(leveldb::ReadOptions()));
-        for (it->SeekToFirst(); it->Valid(); it->Next()) {
-            ns.ParseFromArray(it->value().data(), it->value().size());
-            callback(ns);
-            count++;
-        }
+        return std::unique_ptr<NamespaceIterator>(
+            new LevelDBIterator<Namespace>(db_ns_prefix->NewIterator(leveldb::ReadOptions())));
     }
+}
+
+
+void LevelDBPersistence::GetNamespaces(
+        const Namespace &pattern, LevelDBPersistence::NamespaceHandler callback) {
+    int64_t count = 0;
+
+    bool cbsuccess = true;
+    for(auto it = GetNamespaces(pattern); cbsuccess && it->hasNext(); ++(*it)) {
+        cbsuccess = callback(**it);
+        count++;
+    }
+
     DLOG(INFO) << "Get namespaces done (count=" << count <<")";
 }
 

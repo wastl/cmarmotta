@@ -42,6 +42,70 @@ class CloseableIterator {
 
 };
 
+/**
+ * An empty iterator.
+ */
+template<typename T>
+class EmptyIterator : public CloseableIterator<T> {
+ public:
+    EmptyIterator() { }
+
+    CloseableIterator<T> &operator++() override {
+        return *this;
+    }
+
+    T &operator*() override {
+        throw std::out_of_range("No more elements");
+    };
+
+    T *operator->() override {
+        throw std::out_of_range("No more elements");
+    };
+
+    bool hasNext() override {
+        return false;
+    };
+};
+
+
+
+/**
+ * An iterator wrapping a single element.
+ */
+template<typename T>
+class SingletonIterator : public CloseableIterator<T> {
+ public:
+    SingletonIterator(T& value) : value(value), incremented(false) { }
+
+    CloseableIterator<T> &operator++() override {
+        incremented = true;
+        return *this;
+    };
+
+    T &operator*() override {
+        if (!incremented)
+            return value;
+        else
+            throw std::out_of_range("No more elements");
+    };
+
+    T *operator->() override {
+        if (!incremented)
+            return &value;
+        else
+            throw std::out_of_range("No more elements");
+    };
+
+    bool hasNext() override {
+        return !incremented;
+    };
+
+ private:
+    T value;
+    bool incremented;
+
+};
+
 }
 }
 
