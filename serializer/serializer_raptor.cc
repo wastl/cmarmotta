@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "rdf_serializer.h"
+#include "serializer_raptor.h"
 
 namespace marmotta {
 namespace serializer {

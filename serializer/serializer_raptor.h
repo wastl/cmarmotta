@@ -15,36 +15,41 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef MARMOTTA_PROTO_SERIALIZER_H
-#define MARMOTTA_PROTO_SERIALIZER_H
+#ifndef MARMOTTA_RDF_SERIALIZER_H
+#define MARMOTTA_RDF_SERIALIZER_H
 
-#include <serializer/rdf_serializer.h>
+#include "serializer_base.h"
+#include <raptor2/raptor2.h>
 
 namespace marmotta {
 namespace serializer {
+
 /**
- * Serialize statements as binary proto wire format according to model.proto.
+ * Serializer implementation using the Raptor library to write out statements
+ * in different RDF serialization formats.
  */
-class ProtoSerializer : public SerializerBase {
+class RaptorSerializer : public SerializerBase {
  public:
-    ProtoSerializer(const rdf::URI& baseUri, Format format)
-            : ProtoSerializer(baseUri, format, std::map<std::string, rdf::URI>()) {};
-    ProtoSerializer(const rdf::URI& baseUri, Format format, std::vector<rdf::Namespace> namespaces)
-            : SerializerBase(baseUri, format, namespaces) {};
-    ProtoSerializer(const rdf::URI& baseUri, Format format, std::map<std::string, rdf::URI> namespaces)
-            : SerializerBase(baseUri, format, namespaces) {};
+    RaptorSerializer(const rdf::URI& baseUri, Format format);
+    RaptorSerializer(const rdf::URI& baseUri, Format format, std::vector<rdf::Namespace> namespaces);
+    RaptorSerializer(const rdf::URI& baseUri, Format format, std::map<std::string, rdf::URI> namespaces);
+    ~RaptorSerializer() override;
 
  private:
+    raptor_serializer* serializer;
+    raptor_world*      world;
+    raptor_uri*        base;
+    raptor_iostream*   stream;
+
     void prepare(std::ostream& out) override;
     void serialize(const rdf::Statement& stmt) override;
     void close() override;
 
-    google::protobuf::io::OstreamOutputStream* out_;
-    marmotta::rdf::proto::Statements stmts_;
+    void initRaptor();
 };
 
 
+}
+}
 
-}
-}
-#endif //MARMOTTA_PROTO_SERIALIZER_H
+#endif //MARMOTTA_RDF_SERIALIZER_H

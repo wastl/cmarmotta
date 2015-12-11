@@ -17,8 +17,8 @@
  */
 #include "serializer.h"
 
-#include <serializer/rdf_serializer.h>
-#include <serializer/proto_serializer.h>
+#include "serializer_raptor.h"
+#include "serializer_proto.h"
 
 namespace marmotta {
 namespace serializer {

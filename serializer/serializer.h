@@ -18,7 +18,7 @@
 #ifndef MARMOTTA_SERIALIZER_H
 #define MARMOTTA_SERIALIZER_H
 
-#include <serializer/base_serializer.h>
+#include "serializer_base.h"
 
 namespace marmotta {
 namespace serializer {

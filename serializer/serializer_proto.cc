@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "proto_serializer.h"
+#include "serializer_proto.h"
 
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/io/coded_stream.h>
