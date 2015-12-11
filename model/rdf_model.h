@@ -24,6 +24,17 @@
 #include "model/model.pb.h"
 #include "../../../../.CLion12/system/cmake/generated/9b10467e/9b10467e/Debug/model/model.pb.h"
 
+/*
+ * This namespace contains the model definition for the C++ version of
+ * Marmotta.
+ *
+ * All objects are backed by proto messages, but offer more convenient
+ * high-level constructs.
+ *
+ * All objects implement copy as well as efficient move operations for
+ * constructors and assignment operators. Converting back and forth between
+ * a proto message and a model object is therefore very cheap.
+ */
 namespace marmotta {
 namespace rdf {
 
@@ -63,28 +74,43 @@ class Namespace {
     Namespace(const proto::Namespace &ns) : internal_(ns) { };
 
     /**
-     * Create a new namespace from a namespace proto message (move operator).
+     * Create a new namespace from a namespace proto message (move constructor).
      */
     Namespace(proto::Namespace &&ns) {
         internal_.Swap(&ns);
     };
 
+    /**
+     * Get the prefix used to identify this namespace.
+     */
     const std::string &getPrefix() const {
         return internal_.prefix();
     }
 
+    /**
+     * Set the prefix used to identify this namespace.
+     */
     void setPrefix(std::string &prefix) {
         internal_.set_prefix(prefix);
     }
 
+    /**
+     * Get the URI identified by this namespace.
+     */
     const std::string &getUri() const {
         return internal_.uri();
     }
 
+    /**
+     * Set the URI identified by this namespace.
+     */
     void setUri(std::string &uri) {
         internal_.set_uri(uri);
     }
 
+    /**
+     * Get a reference to the proto message wrapped by the Namespace object.
+     */
     const proto::Namespace& getMessage() const {
         return internal_;
     }
@@ -93,27 +119,53 @@ class Namespace {
     proto::Namespace internal_;
 };
 
-
+/**
+ * RDF URI implementation, backed by a URI proto message.
+ */
 class URI {
  public:
+    /**
+     * Default constructor, creates an empty URI.
+     */
     URI() { }
 
+    /**
+     * Create an URI object from the URI string passed as argument.
+     */
     URI(const std::string &uri) {
         internal_.set_uri(uri);
     }
 
+    /**
+     * Create an URI object from the URI string passed as argument.
+     */
     URI(const char* uri) {
         internal_.set_uri(uri);
     }
 
+    /**
+     * Create an URI object from the proto message passed as argument (copy
+     * constructor).
+     */
     URI(const proto::URI &uri) : internal_(uri) { }
 
+    /**
+     * Create an URI object from the proto message passed as argument (move
+     * constructor, the original proto message is invalidated).
+     */
     URI(proto::URI &&uri) {
         internal_.Swap(&uri);
     }
 
+    /**
+     * Copy constructor, create an URI from another URI.
+     */
     URI(const URI &other) : internal_(other.internal_) {};
 
+    /**
+     * Move constructor, create an URI from another URI, invalidating the
+     * original URI.
+     */
     URI(URI&& uri) {
         internal_.Swap(&uri.internal_);
     }
@@ -122,20 +174,35 @@ class URI {
     URI & operator=(const URI &other);
     URI & operator=(URI &&other);
 
+    /**
+     * Get the string representation of the URI.
+     */
     const std::string &getUri() const {
         return internal_.uri();
     }
 
+    /**
+     * Set the string representation of the URI.
+     */
     void setUri(std::string &uri) {
         internal_.set_uri(uri);
     }
 
+    /**
+     * Get a canonical string representation of the URI.
+     */
     const std::string &stringValue() const {
         return internal_.uri();
     }
 
+    /**
+     * Get a Turtle representation of the URI.
+     */
     std::string as_turtle() const;
 
+    /**
+     * Get a reference to the proto message wrapped by the URI object.
+     */
     const proto::URI& getMessage() const {
         return internal_;
     }
@@ -148,27 +215,53 @@ class URI {
     friend class Statement;
 };
 
-
+/**
+ * RDF Blank node implementation, backed by a BNode proto message.
+ */
 class BNode {
  public:
+    /**
+     * Default constructor, creates empty BNode.
+     */
     BNode() { }
 
+    /**
+     * Create a new BNode using the ID passed as argument.
+     */
     BNode(const std::string &id)  {
         internal_.set_id(id);
     }
 
+    /**
+     * Create a new BNode using the ID passed as argument.
+     */
     BNode(const char* id)  {
         internal_.set_id(id);
     }
 
+    /**
+     * Create a new BNode from the proto message passed as argument (copy
+     * constructor).
+     */
     BNode(const proto::BNode &n) : internal_(n) { }
 
+    /**
+     * Create a new BNode from the proto message passed as argument (move
+     * constructor, original message is invalidated).
+     */
     BNode(proto::BNode &&n) {
         internal_.Swap(&n);
     };
 
+    /**
+     * Copy constructor, create a BNode from another BNode.
+     */
     BNode(const BNode &n) : internal_(n.internal_) {};
 
+    /**
+     * Move constructor, create a BNode from another BNode. The other BNode
+     * is invalidated.
+     */
     BNode(BNode &&n) {
         internal_.Swap(&n.internal_);
     };
@@ -177,23 +270,38 @@ class BNode {
     BNode & operator=(const BNode &other);;
     BNode & operator=(BNode &&other);;
 
+    /**
+     * Return the id of this blank node.
+     */
     const std::string &getId() const {
         return internal_.id();
     }
 
+    /**
+     * Set the id of this blank node.
+     */
     void setId(std::string &id) {
         internal_.set_id(id);
     }
 
+    /**
+     * Get a canonical string representation of the URI.
+     */
     const std::string &stringValue() const {
         return internal_.id();
     }
 
+    /**
+     * Get a Turtle representation of the URI.
+     */
+    std::string as_turtle() const;
+
+    /**
+     * Get a reference to the proto message wrapped by the BNode object.
+     */
     const proto::BNode& getMessage() const {
         return internal_;
     }
-
-    std::string as_turtle() const;
 
  private:
     proto::BNode internal_;
@@ -354,6 +462,11 @@ class DatatypeLiteral {
     friend class Value;
 };
 
+/**
+ * Value is a polymorphic, but strictly typed generic implementation for URI,
+ * BNode and Literal. Copy/move constructors and assignment operators allow
+ * using URI, BNode and Literal wherever a Value is required.
+ */
 class Value {
  public:
     enum {
