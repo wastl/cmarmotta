@@ -5,20 +5,13 @@ import com.google.protobuf.Empty;
 import com.google.protobuf.Int64Value;
 import info.aduna.iteration.*;
 import io.grpc.*;
-import io.grpc.stub.ClientCalls;
 import io.grpc.stub.StreamObserver;
 import org.apache.marmotta.cmarmotta.client.proto.Sail;
 import org.apache.marmotta.cmarmotta.client.proto.SailServiceGrpc;
-import org.apache.marmotta.cmarmotta.model.ProtoBNode;
-import org.apache.marmotta.cmarmotta.model.ProtoNamespace;
-import org.apache.marmotta.cmarmotta.model.ProtoStatement;
-import org.apache.marmotta.cmarmotta.model.ProtoURI;
+import org.apache.marmotta.cmarmotta.model.*;
 import org.apache.marmotta.cmarmotta.model.proto.Model;
 import org.openrdf.model.*;
-import org.openrdf.query.BindingSet;
-import org.openrdf.query.Dataset;
-import org.openrdf.query.QueryEvaluationException;
-import org.openrdf.query.QueryInterruptedException;
+import org.openrdf.query.*;
 import org.openrdf.query.algebra.QueryRoot;
 import org.openrdf.query.algebra.StatementPattern;
 import org.openrdf.query.algebra.TupleExpr;
@@ -27,8 +20,8 @@ import org.openrdf.query.algebra.evaluation.EvaluationStrategy;
 import org.openrdf.query.algebra.evaluation.TripleSource;
 import org.openrdf.query.algebra.evaluation.impl.*;
 import org.openrdf.query.impl.EmptyBindingSet;
+import org.openrdf.query.impl.MapBindingSet;
 import org.openrdf.sail.SailException;
-import org.openrdf.sail.UnknownSailTransactionStateException;
 import org.openrdf.sail.helpers.NotifyingSailConnectionBase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -148,6 +141,57 @@ public class CMarmottaSailConnection extends NotifyingSailConnectionBase {
         } catch (QueryEvaluationException e) {
             throw new SailException(e);
         }
+    }
+
+
+    /**
+     * Send a SPARQL query to a backend supporting direct SPARQL evaluation.
+     *
+     * @param query
+     * @return
+     * @throws SailException
+     */
+    public CloseableIteration<? extends BindingSet, QueryEvaluationException> directTupleQuery(String query) throws SailException {
+        log.info("Committing transaction before querying ...");
+        commitForQuery();
+
+        Sail.SparqlRequest request = Sail.SparqlRequest.newBuilder().setQuery(query).build();
+
+        return new ExceptionConvertingIteration<BindingSet, QueryEvaluationException>(
+                new ConvertingIteration<Sail.SparqlResponse, BindingSet, SailException>(
+                        new ClosableResponseStream<>(astub, SailServiceGrpc.METHOD_TUPLE_QUERY, request)) {
+                    @Override
+                    protected BindingSet convert(Sail.SparqlResponse sourceObject) throws SailException {
+                        MapBindingSet result = new MapBindingSet();
+                        for (Sail.SparqlResponse.Binding b :sourceObject.getBindingList()) {
+
+                            Value v = null;
+                            switch (b.getValue().getValuesCase()) {
+                                case RESOURCE:
+                                    switch(b.getValue().getResource().getResourcesCase()) {
+                                        case URI:
+                                            v = new ProtoURI(b.getValue().getResource().getUri());
+                                        case BNODE:
+                                            v = new ProtoBNode(b.getValue().getResource().getBnode());
+                                    }
+                                case LITERAL:
+                                    switch(b.getValue().getLiteral().getLiteralsCase()) {
+                                        case STRINGLITERAL:
+                                            v = new ProtoStringLiteral(b.getValue().getLiteral().getStringliteral());
+                                        case DATALITERAL:
+                                            v = new ProtoDatatypeLiteral(b.getValue().getLiteral().getDataliteral());
+                                    }
+                            }
+                            result.addBinding(b.getVariable(), v);
+                        }
+                        return result;
+                    }
+                }) {
+            @Override
+            protected QueryEvaluationException convert(Exception e) {
+                return new QueryEvaluationException(e);
+            }
+        };
     }
 
     @Override

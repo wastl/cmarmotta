@@ -31,6 +31,19 @@ message UpdateResponse {
     int64 removed_namespaces = 4;
 }
 
+message SparqlRequest {
+    string query = 1;
+}
+
+message SparqlResponse {
+    message Binding {
+        string variable = 1;
+        marmotta.rdf.proto.Value value = 2;
+    }
+
+    repeated Binding binding = 1;
+}
+
 service SailService {
     // Add namespaces to the repository. Accepts a stream of namespaces.
     // Returns the number of namespaces added.
@@ -81,4 +94,7 @@ service SailService {
     // Batch update operation to process a stream of update requests. Updates
     // are applied in order.
     rpc Update(stream UpdateRequest) returns (UpdateResponse);
+
+    // Execute a SPARQL 1.1 tuple query and stream back the results.
+    rpc TupleQuery(SparqlRequest) returns (stream SparqlResponse);
 }

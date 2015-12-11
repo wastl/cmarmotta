@@ -1,11 +1,26 @@
-//
-// Created by wastl on 09.12.15.
-//
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 #include <functional>
 
 #include <raptor2/raptor2.h>
 #include <rasqal/rasqal.h>
 #include <glog/logging.h>
+#include <chrono>
 
 #include "sparql/rasqal_adapter.h"
 #include "sparql/rasqal_model.h"
@@ -234,6 +249,9 @@ SparqlService::~SparqlService() {
 }
 
 void SparqlService::TupleQuery(const std::string& query, std::function<bool(const RowType&)> row_handler) {
+    auto start = std::chrono::steady_clock::now();
+    LOG(INFO) << "Starting SPARQL tuple query.";
+
     auto q = rasqal_new_query(world, "sparql11-query", nullptr);
     auto base = raptor_new_uri(rasqal_world_get_raptor(world), (const unsigned char*)"http://example.com");
     if (rasqal_query_prepare(q, (const unsigned char*)query.c_str(), base) != 0) {
@@ -270,6 +288,10 @@ void SparqlService::TupleQuery(const std::string& query, std::function<bool(cons
     rasqal_free_query_results(r);
     rasqal_free_query(q);
     raptor_free_uri(base);
+
+    LOG(INFO) << "SPARQL query finished (time=" << std::chrono::duration <double, std::milli> (
+            std::chrono::steady_clock::now() - start).count() << "ms).";
+
 }
 
 }  // namespace sparql
