@@ -18,7 +18,7 @@
 #ifndef MARMOTTA_PROTO_SERIALIZER_H
 #define MARMOTTA_PROTO_SERIALIZER_H
 
-#include "serializer_raptor.h"
+#include "serializer_base.h"
 
 namespace marmotta {
 namespace serializer {
