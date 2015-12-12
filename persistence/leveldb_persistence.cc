@@ -44,7 +44,7 @@ namespace {
 
 
 // Creates an index key based on hashing values of the 4 messages in proper order.
-void computeKey(const std::string* a, const std::string* b, const std::string* c, const std::string* d, char* result) {
+inline void computeKey(const std::string* a, const std::string* b, const std::string* c, const std::string* d, char* result) {
     // 128bit keys, use murmur
     int offset = 0;
     for (auto m : {a, b, c, d}) {
