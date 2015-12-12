@@ -27,12 +27,10 @@
 
 #include "leveldb_persistence.h"
 #include "model/rdf_operators.h"
+#include "util/murmur3.h"
 
 #define CHECK_STATUS(s) CHECK(s.ok()) << "Writing to database failed: " << s.ToString()
 
-#if KEY_LENGTH == 16
-#include "util/murmur3.h"
-#endif
 
 using leveldb::WriteBatch;
 using leveldb::Slice;
@@ -45,46 +43,22 @@ namespace persistence {
 namespace {
 
 
-#if KEY_LENGTH == 8
-static std::hash<std::string> g_hash_fn;
-
-/**
-* Encode a 64bit integer in the first 8 bytes of the buffer.
-*/
-void encodeInt(char* buffer, size_t data) {
-    for (int i=0; i<KEY_LENGTH; i++) {
-        buffer[i] = (char)((data >> ((KEY_LENGTH-i-1)*8)) & 0xFF);
-    }
-}
-#endif
-
 // Creates an index key based on hashing values of the 4 messages in proper order.
 void computeKey(const std::string* a, const std::string* b, const std::string* c, const std::string* d, char* result) {
-#if KEY_LENGTH == 16
     // 128bit keys, use murmur
     int offset = 0;
     for (auto m : {a, b, c, d}) {
         if (m != nullptr) {
+#ifdef __x86_64__
             MurmurHash3_x64_128(m->data(), m->size(), 13, &result[offset]);
-        } else {
-            return;
-        }
-        offset += KEY_LENGTH;
-    }
-
 #else
-    // 64bit keys
-    int offset = 0;
-    for (auto m : {a, b, c, d}) {
-        if (m != nullptr) {
-            size_t h = g_hash_fn(*m);
-            encodeInt(&result[offset], h);
+            MurmurHash3_x86_128(m->data(), m->size(), 13, &result[offset]);
+#endif
         } else {
             return;
         }
         offset += KEY_LENGTH;
     }
-#endif
 }
 
 enum Position {
