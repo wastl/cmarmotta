@@ -121,7 +121,7 @@ TEST(SPARQLTest, Simple) {
     EXPECT_EQ("http://example.com/o1", o.stringValue());
 }
 
-TEST(SPARQLTest, Filter) {
+TEST(SPARQLTest, SubjectPattern) {
     SparqlService svc(std::unique_ptr<TripleSource>(new MockTripleSource(
             {
                     rdf::Statement(rdf::URI("http://example.com/s1"), rdf::URI("http://example.com/p1"), rdf::URI("http://example.com/o1")),
@@ -142,6 +142,52 @@ TEST(SPARQLTest, Filter) {
     EXPECT_EQ(1, count);
     EXPECT_EQ("http://example.com/p1", p.stringValue());
     EXPECT_EQ("http://example.com/o1", o.stringValue());
+}
+
+TEST(SPARQLTest, PredicatePattern) {
+    SparqlService svc(std::unique_ptr<TripleSource>(new MockTripleSource(
+            {
+                    rdf::Statement(rdf::URI("http://example.com/s1"), rdf::URI("http://example.com/p1"), rdf::URI("http://example.com/o1")),
+                    rdf::Statement(rdf::URI("http://example.com/s2"), rdf::URI("http://example.com/p2"), rdf::URI("http://example.com/o2"))
+            }
+    )));
+
+    int count = 0;
+    rdf::Value s, o;
+    svc.TupleQuery("SELECT * WHERE {?s <http://example.com/p1> ?o}", [&](const SparqlService::RowType& row) {
+        count++;
+        s = row.at("s");
+        o = row.at("o");
+
+        return true;
+    });
+
+    EXPECT_EQ(1, count);
+    EXPECT_EQ("http://example.com/s1", s.stringValue());
+    EXPECT_EQ("http://example.com/o1", o.stringValue());
+}
+
+TEST(SPARQLTest, ObjectPattern) {
+    SparqlService svc(std::unique_ptr<TripleSource>(new MockTripleSource(
+            {
+                    rdf::Statement(rdf::URI("http://example.com/s1"), rdf::URI("http://example.com/p1"), rdf::URI("http://example.com/o1")),
+                    rdf::Statement(rdf::URI("http://example.com/s2"), rdf::URI("http://example.com/p2"), rdf::URI("http://example.com/o2"))
+            }
+    )));
+
+    int count = 0;
+    rdf::Value s, p;
+    svc.TupleQuery("SELECT * WHERE {?s ?p <http://example.com/o1>}", [&](const SparqlService::RowType& row) {
+        count++;
+        s = row.at("s");
+        p = row.at("p");
+
+        return true;
+    });
+
+    EXPECT_EQ(1, count);
+    EXPECT_EQ("http://example.com/p1", p.stringValue());
+    EXPECT_EQ("http://example.com/s1", s.stringValue());
 }
 
 TEST(SPARQLTest, BNode) {
@@ -165,6 +211,31 @@ TEST(SPARQLTest, BNode) {
     EXPECT_EQ(1, count);
     EXPECT_EQ("http://example.com/p1", p.stringValue());
     EXPECT_EQ("n1", s.stringValue());
+}
+
+TEST(SPARQLTest, Filter) {
+    SparqlService svc(std::unique_ptr<TripleSource>(new MockTripleSource(
+            {
+                    rdf::Statement(rdf::URI("http://example.com/s1"), rdf::URI("http://example.com/p1"), rdf::URI("http://example.com/o1")),
+                    rdf::Statement(rdf::URI("http://example.com/s2"), rdf::URI("http://example.com/p2"), rdf::URI("http://example.com/o2"))
+            }
+    )));
+
+    int count = 0;
+    rdf::Value s, p, o;
+    svc.TupleQuery("SELECT * WHERE {?s ?p ?o . FILTER(?o = <http://example.com/o1>)}", [&](const SparqlService::RowType& row) {
+        count++;
+        s = row.at("s");
+        p = row.at("p");
+        o = row.at("o");
+
+        return true;
+    });
+
+    EXPECT_EQ(1, count);
+    EXPECT_EQ("http://example.com/p1", p.stringValue());
+    EXPECT_EQ("http://example.com/s1", s.stringValue());
+    EXPECT_EQ("http://example.com/o1", o.stringValue());
 }
 
 TEST(SPARQLTest, Join) {
