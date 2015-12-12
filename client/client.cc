@@ -35,6 +35,8 @@
 #include "serializer/serializer.h"
 #include "service/sail.pb.h"
 #include "service/sail.grpc.pb.h"
+#include "sparql/sparql.pb.h"
+#include "sparql/sparql.grpc.pb.h"
 
 
 using grpc::Channel;
@@ -47,6 +49,7 @@ using google::protobuf::TextFormat;
 
 using namespace marmotta;
 namespace svc = marmotta::service::proto;
+namespace spq = marmotta::sparql::proto;
 
 // A STL iterator wrapper around a client reader.
 template <class T, class Proto>
@@ -96,7 +99,9 @@ class MarmottaClient {
  public:
     MarmottaClient(const std::string& server)
             : stub_(svc::SailService::NewStub(
-            grpc::CreateChannel(server, grpc::InsecureChannelCredentials()))) {}
+            grpc::CreateChannel(server, grpc::InsecureChannelCredentials()))),
+              sparql_(spq::SparqlService::NewStub(
+                      grpc::CreateChannel(server, grpc::InsecureChannelCredentials()))){}
 
     void importDataset(std::istream& in, parser::Format format) {
         ClientContext nscontext, stmtcontext;
@@ -157,14 +162,14 @@ class MarmottaClient {
 
     void tupleQuery(const std::string& query, std::ostream &out) {
         ClientContext context;
-        svc::SparqlRequest request;
+        spq::SparqlRequest request;
         request.set_query(query);
 
-        std::unique_ptr<ClientReader<svc::SparqlResponse>> reader(
-                stub_->TupleQuery(&context, request));
+        std::unique_ptr<ClientReader<spq::SparqlResponse>> reader(
+                sparql_->TupleQuery(&context, request));
 
         auto out_ = new google::protobuf::io::OstreamOutputStream(&out);
-        svc::SparqlResponse result;
+        spq::SparqlResponse result;
         while (reader->Read(&result)) {
             TextFormat::Print(result, dynamic_cast<google::protobuf::io::ZeroCopyOutputStream*>(out_));
         }
@@ -198,6 +203,7 @@ class MarmottaClient {
     }
  private:
     std::unique_ptr<svc::SailService::Stub> stub_;
+    std::unique_ptr<spq::SparqlService::Stub> sparql_;
 };
 
 

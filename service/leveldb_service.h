@@ -18,7 +18,7 @@
 #ifndef MARMOTTA_SERVICE_H
 #define MARMOTTA_SERVICE_H
 
-#include "service/persistence.h"
+#include "leveldb_persistence.h"
 
 #include <grpc/grpc.h>
 #include <grpc++/server.h>
@@ -31,18 +31,25 @@
 
 #include "service/sail.pb.h"
 #include "service/sail.grpc.pb.h"
+#include "sparql/sparql.pb.h"
+#include "sparql/sparql.grpc.pb.h"
 
 namespace marmotta {
 namespace service {
 
 namespace svc = marmotta::service::proto;
+namespace spq = marmotta::sparql::proto;
 
 /**
  * An implementation of the gRPC service interface backed by a LevelDB database.
  */
 class LevelDBService : public svc::SailService::Service {
  public:
-    LevelDBService(const std::string& path, int64_t cacheSize) : persistence(path, cacheSize) { };
+    /**
+     * Construct a new SailService wrapper around the LevelDB persistence passed
+     * as argument. The service will not take ownership of the pointer.
+     */
+    LevelDBService(persistence::LevelDBPersistence* persistance) : persistence(persistance) { };
 
     grpc::Status AddNamespaces(grpc::ServerContext* context,
                                grpc::ServerReader<rdf::proto::Namespace>* reader,
@@ -84,11 +91,27 @@ class LevelDBService : public svc::SailService::Service {
                       const svc::ContextRequest* contexts,
                       google::protobuf::Int64Value* result) override;
 
-    grpc::Status TupleQuery(grpc::ServerContext* context,
-                               const svc::SparqlRequest* pattern,
-                               grpc::ServerWriter<svc::SparqlResponse>* result) override;
  private:
-    persistence::LevelDBPersistence persistence;
+    persistence::LevelDBPersistence* persistence;
+};
+
+
+/**
+ * An implementation of the gRPC service interface backed by a LevelDB database.
+ */
+class LevelDBSparqlService : public spq::SparqlService::Service {
+ public:
+    /**
+     * Construct a new SparqlService wrapper around the LevelDB persistence passed
+     * as argument. The service will not take ownership of the pointer.
+     */
+    LevelDBSparqlService(persistence::LevelDBPersistence* persistence) : persistence(persistence) { };
+
+    grpc::Status TupleQuery(grpc::ServerContext* context,
+                            const spq::SparqlRequest* pattern,
+                            grpc::ServerWriter<spq::SparqlResponse>* result) override;
+ private:
+    persistence::LevelDBPersistence* persistence;
 };
 
 }

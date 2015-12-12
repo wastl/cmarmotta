@@ -22,7 +22,7 @@
 #include <sys/stat.h>
 #include <signal.h>
 
-#include "service/service.h"
+#include "leveldb_service.h"
 
 using grpc::Status;
 using grpc::Server;
@@ -49,11 +49,15 @@ int main(int argc, char** argv) {
     google::ParseCommandLineFlags(&argc, &argv, true);
 
     mkdir(FLAGS_db.c_str(), 0700);
-    marmotta::service::LevelDBService service(FLAGS_db, FLAGS_cache_size);
+    marmotta::persistence::LevelDBPersistence persistence(FLAGS_db, FLAGS_cache_size);
+
+    marmotta::service::LevelDBService sailService(&persistence);
+    marmotta::service::LevelDBSparqlService sparqlService(&persistence);
 
     ServerBuilder builder;
     builder.AddListeningPort(FLAGS_host + ":" + FLAGS_port, grpc::InsecureServerCredentials());
-    builder.RegisterService(&service);
+    builder.RegisterService(&sailService);
+    builder.RegisterService(&sparqlService);
 
     server = builder.BuildAndStart();
     std::cout << "Persistence Server listening on " << FLAGS_host << ":" << FLAGS_port << std::endl;

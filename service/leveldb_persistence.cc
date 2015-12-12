@@ -25,7 +25,7 @@
 #include <google/protobuf/wrappers.pb.h>
 #include <thread>
 
-#include "persistence.h"
+#include "leveldb_persistence.h"
 #include "model/rdf_operators.h"
 
 #define CHECK_STATUS(s) CHECK(s.ok()) << "Writing to database failed: " << s.ToString()

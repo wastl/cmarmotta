@@ -19,7 +19,7 @@
 #define MARMOTTA_SPARQL_H
 
 #include "sparql/rasqal_adapter.h"
-#include "service/persistence.h"
+#include "leveldb_persistence.h"
 
 namespace marmotta {
 namespace persistence {

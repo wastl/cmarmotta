@@ -15,8 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "service.h"
-#include "sparql.h"
+#include "leveldb_service.h"
+#include "leveldb_sparql.h"
 
 #include <unordered_set>
 #include <model/rdf_operators.h>
@@ -36,6 +36,9 @@ using marmotta::rdf::proto::Statement;
 using marmotta::rdf::proto::Namespace;
 using marmotta::rdf::proto::Resource;
 using marmotta::service::proto::ContextRequest;
+using marmotta::persistence::sparql::LevelDBTripleSource;
+using marmotta::sparql::SparqlService;
+using marmotta::sparql::TripleSource;
 
 namespace marmotta {
 namespace service {
@@ -84,7 +87,7 @@ Status LevelDBService::AddNamespaces(
         ServerContext* context, ServerReader<Namespace>* reader, Int64Value* result) {
 
     auto it = NamespaceIterator(reader);
-    int64_t count = persistence.AddNamespaces(it);
+    int64_t count = persistence->AddNamespaces(it);
     result->set_value(count);
 
     return Status::OK;
@@ -94,7 +97,7 @@ grpc::Status LevelDBService::GetNamespace(
         ServerContext *context, const rdf::proto::Namespace *pattern, Namespace *result) {
 
     Status status(StatusCode::NOT_FOUND, "Namespace not found");
-    persistence.GetNamespaces(*pattern, [&result, &status](const Namespace &r) -> bool {
+    persistence->GetNamespaces(*pattern, [&result, &status](const Namespace &r) -> bool {
         *result = r;
         status = Status::OK;
         return true;
@@ -107,7 +110,7 @@ grpc::Status LevelDBService::GetNamespaces(
         ServerContext *context, const Empty *ignored, ServerWriter<Namespace> *result) {
 
     Namespace pattern; // empty pattern
-    persistence.GetNamespaces(pattern, [&result](const Namespace &r) -> bool {
+    persistence->GetNamespaces(pattern, [&result](const Namespace &r) -> bool {
         return result->Write(r);
     });
 
@@ -119,7 +122,7 @@ Status LevelDBService::AddStatements(
         ServerContext* context, ServerReader<Statement>* reader, Int64Value* result) {
 
     auto it = StatementIterator(reader);
-    int64_t count = persistence.AddStatements(it);
+    int64_t count = persistence->AddStatements(it);
     result->set_value(count);
 
     return Status::OK;
@@ -129,7 +132,7 @@ Status LevelDBService::AddStatements(
 Status LevelDBService::GetStatements(
         ServerContext* context, const Statement* pattern, ServerWriter<Statement>* result) {
 
-    persistence.GetStatements(*pattern, [&result](const Statement& stmt) -> bool {
+    persistence->GetStatements(*pattern, [&result](const Statement& stmt) -> bool {
         return result->Write(stmt);
     });
 
@@ -139,7 +142,7 @@ Status LevelDBService::GetStatements(
 Status LevelDBService::RemoveStatements(
         ServerContext* context, const Statement* pattern, Int64Value* result) {
 
-    int64_t count = persistence.RemoveStatements(*pattern);
+    int64_t count = persistence->RemoveStatements(*pattern);
     result->set_value(count);
 
     return Status::OK;
@@ -155,10 +158,10 @@ Status LevelDBService::Clear(
     if (contexts->context_size() > 0) {
         for (const Resource &r : contexts->context()) {
             pattern.mutable_context()->CopyFrom(r);
-            count += persistence.RemoveStatements(pattern);
+            count += persistence->RemoveStatements(pattern);
         }
     } else {
-        count += persistence.RemoveStatements(pattern);
+        count += persistence->RemoveStatements(pattern);
     }
     result->set_value(count);
 
@@ -175,13 +178,13 @@ Status LevelDBService::Size(
         for (const Resource &r : contexts->context()) {
             pattern.mutable_context()->CopyFrom(r);
 
-            persistence.GetStatements(pattern, [&count](const Statement& stmt) -> bool {
+            persistence->GetStatements(pattern, [&count](const Statement& stmt) -> bool {
                 count++;
                 return true;
             });
         }
     } else {
-        count = persistence.Size();
+        count = persistence->Size();
     }
     result->set_value(count);
 
@@ -196,7 +199,7 @@ grpc::Status LevelDBService::GetContexts(
     Statement pattern;
     std::unordered_set<Resource> contexts;
 
-    persistence.GetStatements(pattern, [&contexts](const Statement& stmt) -> bool {
+    persistence->GetStatements(pattern, [&contexts](const Statement& stmt) -> bool {
         if (stmt.has_context()) {
             contexts.insert(stmt.context());
         }
@@ -214,7 +217,7 @@ grpc::Status LevelDBService::Update(grpc::ServerContext *context,
                                     service::proto::UpdateResponse *result) {
 
     auto it = UpdateIterator(reader);
-    persistence::UpdateStatistics stats = persistence.Update(it);
+    persistence::UpdateStatistics stats = persistence->Update(it);
 
     result->set_added_namespaces(stats.added_ns);
     result->set_removed_namespaces(stats.removed_ns);
@@ -225,16 +228,16 @@ grpc::Status LevelDBService::Update(grpc::ServerContext *context,
 }
 
 
-grpc::Status LevelDBService::TupleQuery(grpc::ServerContext* context,
-                        const svc::SparqlRequest* query,
-                        grpc::ServerWriter<svc::SparqlResponse>* result) {
+grpc::Status LevelDBSparqlService::TupleQuery(
+        grpc::ServerContext* context, const spq::SparqlRequest* query,
+        grpc::ServerWriter<spq::SparqlResponse>* result) {
 
-    sparql::SparqlService svc(
-        std::unique_ptr<sparql::TripleSource>(
-                new persistence::sparql::LevelDBTripleSource(&persistence)));
+    SparqlService svc(
+        std::unique_ptr<TripleSource>(
+                new LevelDBTripleSource(persistence)));
 
-    svc.TupleQuery(query->query(), [&result](const sparql::SparqlService::RowType& row) {
-        svc::SparqlResponse response;
+    svc.TupleQuery(query->query(), [&result](const SparqlService::RowType& row) {
+        spq::SparqlResponse response;
         for (auto it = row.cbegin(); it != row.cend(); it++) {
             auto b = response.add_binding();
             b->set_variable(it->first);
