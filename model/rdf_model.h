@@ -22,7 +22,6 @@
 #include <iostream>
 
 #include "model/model.pb.h"
-#include "../../../../.CLion12/system/cmake/generated/9b10467e/9b10467e/Debug/model/model.pb.h"
 
 /*
  * This namespace contains the model definition for the C++ version of
